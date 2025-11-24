@@ -718,6 +718,7 @@
         let gastosUnsubscribe;
         let saldosUnsubscribe;
         let chart;
+        let todosGastos = []; // Array para armazenar todos os gastos
         
         // Elementos DOM
         const connectFirebaseBtn = document.getElementById('connectFirebase');
@@ -740,6 +741,11 @@
         // Conectar ao Firebase automaticamente
         document.addEventListener('DOMContentLoaded', () => {
             conectarFirebase();
+            
+            // Adicionar event listeners para os filtros
+            filtroStatus.addEventListener('change', aplicarFiltros);
+            filtroMes.addEventListener('change', aplicarFiltros);
+            filtroAno.addEventListener('change', aplicarFiltros);
         });
         
         // Função para conectar ao Firebase
@@ -793,13 +799,13 @@
             gastosUnsubscribe = gastosCollection
                 .orderBy('data', 'desc')
                 .onSnapshot((snapshot) => {
-                    const gastos = [];
+                    todosGastos = [];
                     snapshot.forEach(doc => {
-                        gastos.push({ id: doc.id, ...doc.data() });
+                        todosGastos.push({ id: doc.id, ...doc.data() });
                     });
-                    atualizarTabelaGastos(gastos);
-                    atualizarGrafico(gastos);
-                    atualizarDashboard(gastos);
+                    aplicarFiltros(); // Aplicar filtros quando os dados mudarem
+                    atualizarGrafico(todosGastos);
+                    atualizarDashboard(todosGastos);
                 }, (error) => {
                     console.error('Erro ao carregar gastos:', error);
                 });
@@ -820,31 +826,49 @@
                 });
         }
         
-        // Atualizar tabela de gastos
-        function atualizarTabelaGastos(gastos) {
-            // Aplicar filtros
+        // Função para aplicar todos os filtros
+        function aplicarFiltros() {
+            if (todosGastos.length === 0) return;
+            
             const statusFiltro = filtroStatus.value;
             const mesFiltro = filtroMes.value;
             const anoFiltro = filtroAno.value;
             
-            const gastosFiltrados = gastos.filter(gasto => {
+            console.log('Aplicando filtros:', { statusFiltro, mesFiltro, anoFiltro });
+            
+            const gastosFiltrados = todosGastos.filter(gasto => {
                 const dataGasto = new Date(gasto.data);
                 const gastoMes = (dataGasto.getMonth() + 1).toString();
                 const gastoAno = dataGasto.getFullYear().toString();
                 
-                return (!statusFiltro || gasto.status === statusFiltro) &&
-                       (!mesFiltro || gastoMes === mesFiltro) &&
-                       (!anoFiltro || gastoAno === anoFiltro);
+                // Debug: verificar dados de cada gasto
+                console.log('Gasto:', {
+                    titulo: gasto.titulo,
+                    status: gasto.status,
+                    data: gasto.data,
+                    mes: gastoMes,
+                    ano: gastoAno
+                });
+                
+                const statusMatch = !statusFiltro || gasto.status === statusFiltro;
+                const mesMatch = !mesFiltro || gastoMes === mesFiltro;
+                const anoMatch = !anoFiltro || gastoAno === anoFiltro;
+                
+                return statusMatch && mesMatch && anoMatch;
             });
             
-            // Atualizar anos no filtro
-            atualizarFiltroAnos(gastos);
+            console.log('Gastos filtrados:', gastosFiltrados.length);
             
+            atualizarTabelaGastos(gastosFiltrados);
+        }
+        
+        // Atualizar tabela de gastos
+        function atualizarTabelaGastos(gastos) {
             // Limpar tabela
             tabelaGastosBody.innerHTML = '';
             
             // Preencher tabela ou mostrar estado vazio
-            if (gastosFiltrados.length === 0) {
+            if (gastos.length === 0) {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td colspan="6" class="empty-state">
@@ -858,7 +882,7 @@
             }
             
             // Preencher tabela com dados
-            gastosFiltrados.forEach(gasto => {
+            gastos.forEach(gasto => {
                 const dataFormatada = formatarData(gasto.data);
                 const valorFormatado = formatarMoeda(gasto.valor);
                 
@@ -1269,6 +1293,7 @@
             filtroStatus.value = '';
             filtroMes.value = '';
             filtroAno.value = '';
+            aplicarFiltros(); // Reaplicar filtros após limpar
         });
         
         // ===========================================
