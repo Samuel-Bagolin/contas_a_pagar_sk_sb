@@ -23,6 +23,9 @@
             --warning-color: #ff9800;
             --danger-color: #f44336;
             --card-bg: #2d2d2d;
+            --gradient-primary: linear-gradient(135deg, #00d4aa, #00a885);
+            --gradient-secondary: linear-gradient(135deg, #8a05be, #6a00a0);
+            --gradient-dark: linear-gradient(135deg, #1a1a1a, #2a2a2a);
         }
         
         * {
@@ -91,7 +94,7 @@
         }
         
         .saldo-card {
-            background: linear-gradient(135deg, var(--accent-color), #3a3a3a);
+            background: var(--gradient-dark);
             position: relative;
             overflow: hidden;
         }
@@ -107,7 +110,7 @@
         }
         
         .reserva-card {
-            background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
+            background: var(--gradient-secondary);
             color: white;
             display: flex;
             flex-direction: column;
@@ -137,7 +140,7 @@
         .reserva-logo {
             width: 120px;
             height: 36px;
-            background: linear-gradient(135deg, #8a05be, #6a00a0);
+            background: rgba(255,255,255,0.2);
             border-radius: 8px;
             display: flex;
             align-items: center;
@@ -173,6 +176,10 @@
             font-weight: bold;
             margin: 15px 0;
             color: var(--primary-color);
+        }
+        
+        .saldo-negativo {
+            color: var(--danger-color);
         }
         
         .reserva-valor {
@@ -456,6 +463,23 @@
             border-bottom: none;
         }
         
+        .charts-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        @media (max-width: 1024px) {
+            .charts-section {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .chart-card {
+            grid-column: 1 / -1;
+        }
+        
         @media (max-width: 768px) {
             .firebase-fields, .saldo-form {
                 grid-template-columns: 1fr;
@@ -555,6 +579,23 @@
             </div>
         </section>
         
+        <!-- Seção de Gráficos -->
+        <section class="charts-section">
+            <div class="card chart-card">
+                <h2>📈 Evolução do Salário</h2>
+                <div class="chart-container">
+                    <canvas id="graficoEvolucaoSalario"></canvas>
+                </div>
+            </div>
+            
+            <div class="card chart-card">
+                <h2>📊 Gastos por Mês</h2>
+                <div class="chart-container">
+                    <canvas id="graficoGastos"></canvas>
+                </div>
+            </div>
+        </section>
+        
         <!-- Conteúdo Principal -->
         <section class="main-content">
             <!-- Formulário de Lançamento -->
@@ -621,7 +662,7 @@
                 </div>
             </div>
             
-            <!-- Lista de Gastos e Gráfico -->
+            <!-- Lista de Gastos -->
             <div>
                 <!-- Filtros -->
                 <div class="card">
@@ -679,14 +720,6 @@
                         </table>
                     </div>
                 </div>
-                
-                <!-- Gráfico -->
-                <div class="card">
-                    <h2>📈 Gastos por Mês</h2>
-                    <div class="chart-container">
-                        <canvas id="graficoGastos"></canvas>
-                    </div>
-                </div>
             </div>
         </section>
     </div>
@@ -717,8 +750,10 @@
         let saldosCollection;
         let gastosUnsubscribe;
         let saldosUnsubscribe;
-        let chart;
+        let chartGastos;
+        let chartEvolucaoSalario;
         let todosGastos = []; // Array para armazenar todos os gastos
+        let todosSaldos = []; // Array para armazenar todos os saldos
         
         // Elementos DOM
         const connectFirebaseBtn = document.getElementById('connectFirebase');
@@ -804,8 +839,8 @@
                         todosGastos.push({ id: doc.id, ...doc.data() });
                     });
                     aplicarFiltros(); // Aplicar filtros quando os dados mudarem
-                    atualizarGrafico(todosGastos);
-                    atualizarDashboard(todosGastos);
+                    atualizarGraficoGastos(todosGastos);
+                    atualizarDashboard(todosGastos, todosSaldos);
                 }, (error) => {
                     console.error('Erro ao carregar gastos:', error);
                 });
@@ -813,14 +848,14 @@
             // Listener para saldos
             saldosUnsubscribe = saldosCollection
                 .orderBy('data', 'desc')
-                .limit(10)
                 .onSnapshot((snapshot) => {
-                    const saldos = [];
+                    todosSaldos = [];
                     snapshot.forEach(doc => {
-                        saldos.push({ id: doc.id, ...doc.data() });
+                        todosSaldos.push({ id: doc.id, ...doc.data() });
                     });
-                    atualizarDashboard(null, saldos);
-                    atualizarHistoricoSaldos(saldos);
+                    atualizarDashboard(todosGastos, todosSaldos);
+                    atualizarHistoricoSaldos(todosSaldos);
+                    atualizarGraficoEvolucaoSalario(todosSaldos);
                 }, (error) => {
                     console.error('Erro ao carregar saldos:', error);
                 });
@@ -920,7 +955,10 @@
                 return;
             }
             
-            saldos.forEach(saldo => {
+            // Mostrar apenas os 10 mais recentes
+            const saldosRecentes = saldos.slice(0, 10);
+            
+            saldosRecentes.forEach(saldo => {
                 const dataFormatada = formatarData(saldo.data);
                 const total = (saldo.salarioSammia || 0) + (saldo.salarioSamuel || 0) + (saldo.reserva || 0);
                 
@@ -936,7 +974,7 @@
         }
         
         // Atualizar gráfico de gastos
-        function atualizarGrafico(gastos) {
+        function atualizarGraficoGastos(gastos) {
             const ctx = document.getElementById('graficoGastos').getContext('2d');
             
             // Agrupar gastos por mês/ano
@@ -965,12 +1003,12 @@
             const valores = meses.map(mes => gastosPorMes[mes]);
             
             // Destruir gráfico anterior se existir
-            if (chart) {
-                chart.destroy();
+            if (chartGastos) {
+                chartGastos.destroy();
             }
             
             // Criar novo gráfico
-            chart = new Chart(ctx, {
+            chartGastos = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: labels,
@@ -1029,9 +1067,105 @@
             });
         }
         
-        // Atualizar dashboard com saldos
+        // Atualizar gráfico de evolução do salário
+        function atualizarGraficoEvolucaoSalario(saldos) {
+            const ctx = document.getElementById('graficoEvolucaoSalario').getContext('2d');
+            
+            // Ordenar saldos por data
+            const saldosOrdenados = [...saldos].sort((a, b) => new Date(a.data) - new Date(b.data));
+            
+            // Preparar dados para o gráfico
+            const labels = saldosOrdenados.map(saldo => formatarData(saldo.data));
+            const salarioSammia = saldosOrdenados.map(saldo => saldo.salarioSammia || 0);
+            const salarioSamuel = saldosOrdenados.map(saldo => saldo.salarioSamuel || 0);
+            const totalSalarios = saldosOrdenados.map(saldo => (saldo.salarioSammia || 0) + (saldo.salarioSamuel || 0));
+            
+            // Destruir gráfico anterior se existir
+            if (chartEvolucaoSalario) {
+                chartEvolucaoSalario.destroy();
+            }
+            
+            // Criar novo gráfico
+            chartEvolucaoSalario = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Salário Sammia',
+                            data: salarioSammia,
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                            tension: 0.3,
+                            fill: false
+                        },
+                        {
+                            label: 'Salário Samuel',
+                            data: salarioSamuel,
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            tension: 0.3,
+                            fill: false
+                        },
+                        {
+                            label: 'Total Salários',
+                            data: totalSalarios,
+                            borderColor: 'rgba(0, 212, 170, 1)',
+                            backgroundColor: 'rgba(0, 212, 170, 0.2)',
+                            tension: 0.3,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(255,255,255,0.1)'
+                            },
+                            ticks: {
+                                color: 'rgba(255,255,255,0.7)',
+                                callback: function(value) {
+                                    return 'R$ ' + value.toLocaleString('pt-BR');
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: 'rgba(255,255,255,0.1)'
+                            },
+                            ticks: {
+                                color: 'rgba(255,255,255,0.7)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: 'rgba(255,255,255,0.7)'
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(45,45,45,0.9)',
+                            titleColor: 'rgba(255,255,255,0.9)',
+                            bodyColor: 'rgba(255,255,255,0.9)',
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': R$ ' + context.raw.toLocaleString('pt-BR');
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // Atualizar dashboard com saldos - VERSÃO CORRIGIDA
         function atualizarDashboard(gastos, saldos) {
-            // Se temos saldos históricos, usar o mais recente
+            // Se temos saldos históricos, usar o mais recente para mostrar os valores atuais
             if (saldos && saldos.length > 0) {
                 const saldoMaisRecente = saldos[0];
                 document.getElementById('salarioSammia').textContent = formatarMoeda(saldoMaisRecente.salarioSammia || 0);
@@ -1048,13 +1182,24 @@
                 
                 document.getElementById('gastosPagos').textContent = formatarMoeda(gastosPagos);
                 
-                // Calcular saldo geral
-                const salarioSammia = parseFloat(document.getElementById('salarioSammia').textContent.replace(/[^\d,]/g, '').replace(',', '.'));
-                const salarioSamuel = parseFloat(document.getElementById('salarioSamuel').textContent.replace(/[^\d,]/g, '').replace(',', '.'));
-                const reserva = parseFloat(document.getElementById('reservaValor').textContent.replace(/[^\d,]/g, '').replace(',', '.'));
+                // Calcular saldo geral CORRETAMENTE
+                // Obter valores dos salários e reserva do saldo mais recente
+                const salarioSammia = saldos && saldos.length > 0 ? (saldos[0].salarioSammia || 0) : 0;
+                const salarioSamuel = saldos && saldos.length > 0 ? (saldos[0].salarioSamuel || 0) : 0;
+                const reserva = saldos && saldos.length > 0 ? (saldos[0].reserva || 0) : 0;
                 
-                const saldoGeral = salarioSammia + salarioSamuel + reserva - gastosPagos;
-                document.getElementById('saldoGeral').textContent = formatarMoeda(saldoGeral);
+                // Saldo geral = (Salário Sammia + Salário Samuel + Reserva) - Gastos Pagos
+                const saldoGeral = (salarioSammia + salarioSamuel + reserva) - gastosPagos;
+                
+                const saldoGeralElement = document.getElementById('saldoGeral');
+                saldoGeralElement.textContent = formatarMoeda(saldoGeral);
+                
+                // Adicionar classe para saldo negativo
+                if (saldoGeral < 0) {
+                    saldoGeralElement.classList.add('saldo-negativo');
+                } else {
+                    saldoGeralElement.classList.remove('saldo-negativo');
+                }
             }
         }
         
