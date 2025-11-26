@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Contas a Pagar</title>
+    <title>Finanças Pro | Controle Financeiro</title>
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
@@ -11,1561 +11,418 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- SheetJS -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <style>
-        :root {
-            --primary-color: #00d4aa;
-            --secondary-color: #1a1a1a;
-            --accent-color: #2d2d2d;
-            --text-color: #e0e0e0;
-            --text-muted: #888;
-            --border-color: #444;
-            --success-color: #00c853;
-            --warning-color: #ff9800;
-            --danger-color: #f44336;
-            --card-bg: #2d2d2d;
-            --gradient-primary: linear-gradient(135deg, #00d4aa, #00a885);
-            --gradient-secondary: linear-gradient(135deg, #8a05be, #6a00a0);
-            --gradient-dark: linear-gradient(135deg, #1a1a1a, #2a2a2a);
-        }
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        
-        body {
-            background-color: #121212;
-            color: var(--text-color);
-            line-height: 1.6;
-            min-height: 100vh;
-        }
-        
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        
-        header {
-            text-align: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid var(--border-color);
-        }
-        
-        h1, h2, h3 {
-            color: var(--primary-color);
-            margin-bottom: 15px;
-        }
-        
-        .dashboard {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        
-        @media (max-width: 1024px) {
-            .dashboard {
-                grid-template-columns: 1fr 1fr;
-            }
-        }
-        
-        @media (max-width: 768px) {
-            .dashboard {
-                grid-template-columns: 1fr;
-            }
-        }
-        
-        .card {
-            background: var(--card-bg);
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-            padding: 24px;
-            border: 1px solid var(--border-color);
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        
-        .card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 25px rgba(0,0,0,0.4);
-        }
-        
-        .saldo-card {
-            background: var(--gradient-dark);
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .saldo-card::before {
-            content: "";
-            position: absolute;
-            top: -50%;
-            right: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(0,212,170,0.1) 0%, rgba(0,212,170,0) 70%);
-        }
-        
-        .reserva-card {
-            background: var(--gradient-secondary);
-            color: white;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            position: relative;
-            overflow: hidden;
-            border: 1px solid #333;
-        }
-        
-        .reserva-card::before {
-            content: "";
-            position: absolute;
-            top: -50%;
-            right: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 70%);
-        }
-        
-        .reserva-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-        
-        .reserva-logo {
-            width: 120px;
-            height: 36px;
-            background: rgba(255,255,255,0.2);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            font-weight: bold;
-            color: white;
-            box-shadow: 0 2px 10px rgba(138, 5, 190, 0.3);
-        }
-        
-        .chip {
-            width: 40px;
-            height: 30px;
-            background: linear-gradient(135deg, #d4af37, #ffd700);
-            border-radius: 5px;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .chip::before {
-            content: "";
-            position: absolute;
-            top: 5px;
-            left: 5px;
-            right: 5px;
-            bottom: 5px;
-            border: 1px solid rgba(255,255,255,0.3);
-            border-radius: 3px;
-        }
-        
-        .saldo-valor {
-            font-size: 2.2rem;
-            font-weight: bold;
-            margin: 15px 0;
-            color: var(--primary-color);
-        }
-        
-        .saldo-negativo {
-            color: var(--danger-color);
-        }
-        
-        .reserva-valor {
-            font-size: 2rem;
-            font-weight: bold;
-            margin: 15px 0;
-            color: white;
-        }
-        
-        .saldo-detalhes {
-            font-size: 0.9rem;
-            color: var(--text-muted);
-        }
-        
-        .saldo-detalhes p {
-            margin: 5px 0;
-            display: flex;
-            justify-content: space-between;
-        }
-        
-        .main-content {
-            display: grid;
-            grid-template-columns: 1fr 2fr;
-            gap: 25px;
-        }
-        
-        @media (max-width: 1024px) {
-            .main-content {
-                grid-template-columns: 1fr;
-            }
-        }
-        
-        .form-section {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-        
-        .form-group {
-            margin-bottom: 18px;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
-            color: var(--text-color);
-        }
-        
-        input, select, textarea {
-            width: 100%;
-            padding: 12px;
-            background: var(--secondary-color);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            font-size: 1rem;
-            color: var(--text-color);
-            transition: border-color 0.3s;
-        }
-        
-        input:focus, select:focus, textarea:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 2px rgba(0,212,170,0.2);
-        }
-        
-        button {
-            background: var(--primary-color);
-            color: #121212;
-            border: none;
-            padding: 12px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 1rem;
-            font-weight: 600;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-        
-        button:hover {
-            background: #00c49a;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(0,212,170,0.3);
-        }
-        
-        button:active {
-            transform: translateY(0);
-        }
-        
-        .btn-secondary {
-            background: var(--accent-color);
-            color: var(--text-color);
-        }
-        
-        .btn-secondary:hover {
-            background: #3a3a3a;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        }
-        
-        .btn-success {
-            background: var(--success-color);
-            color: white;
-        }
-        
-        .btn-warning {
-            background: var(--warning-color);
-            color: white;
-        }
-        
-        .btn-danger {
-            background: var(--danger-color);
-            color: white;
-        }
-        
-        .actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-        }
-        
-        .actions button {
-            flex: 1;
-        }
-        
-        .filters {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-        
-        .filters select {
-            flex: 1;
-            min-width: 140px;
-        }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-        
-        th, td {
-            padding: 14px 16px;
-            text-align: left;
-            border-bottom: 1px solid var(--border-color);
-        }
-        
-        th {
-            background: var(--accent-color);
-            font-weight: 600;
-            color: var(--primary-color);
-        }
-        
-        tr:hover {
-            background: rgba(255,255,255,0.05);
-        }
-        
-        .status-pago {
-            color: var(--success-color);
-            font-weight: 600;
-        }
-        
-        .status-pendente {
-            color: var(--warning-color);
-            font-weight: 600;
-        }
-        
-        .chart-container {
-            height: 320px;
-            margin-top: 20px;
-        }
-        
-        .firebase-config {
-            background: var(--card-bg);
-            padding: 20px;
-            border-radius: 12px;
-            margin-bottom: 25px;
-            border: 1px solid var(--border-color);
-        }
-        
-        .firebase-config h3 {
-            margin-bottom: 15px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .firebase-status {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-top: 15px;
-            padding: 10px;
-            border-radius: 8px;
-            background: var(--accent-color);
-        }
-        
-        .status-connected {
-            color: var(--success-color);
-        }
-        
-        .status-disconnected {
-            color: var(--warning-color);
-        }
-        
-        .import-export {
-            display: flex;
-            gap: 12px;
-            margin-top: 20px;
-        }
-        
-        .hidden {
-            display: none;
-        }
-        
-        .card-number {
-            font-family: monospace;
-            letter-spacing: 2px;
-            font-size: 1.1rem;
-            margin: 10px 0;
-        }
-        
-        .card-holder {
-            font-size: 0.9rem;
-            color: var(--text-muted);
-        }
-        
-        .saldo-form {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-top: 15px;
-        }
-        
-        .saldo-form .form-group {
-            margin-bottom: 0;
-        }
-        
-        .saldo-actions {
-            grid-column: 1 / -1;
-            display: flex;
-            gap: 10px;
-        }
-        
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: var(--text-muted);
-        }
-        
-        .empty-state i {
-            font-size: 3rem;
-            margin-bottom: 15px;
-            opacity: 0.5;
-        }
-        
-        .historico-saldos {
-            margin-top: 20px;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-        
-        .historico-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid var(--border-color);
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        
-        .historico-item:hover {
-            background: rgba(255,255,255,0.05);
-        }
-        
-        .historico-item:last-child {
-            border-bottom: none;
-        }
-        
-        .charts-section {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-        
-        @media (max-width: 1024px) {
-            .charts-section {
-                grid-template-columns: 1fr;
-            }
-        }
-        
-        .chart-card {
-            grid-column: 1 / -1;
-        }
-        
-        @media (max-width: 768px) {
-            .firebase-fields, .saldo-form {
-                grid-template-columns: 1fr;
-            }
-            
-            .filters {
-                flex-direction: column;
-            }
-            
-            .actions {
-                flex-direction: column;
-            }
-        }
-    </style>
+    <!-- Feather Icons -->
+    <script src="https://unpkg.com/feather-icons"></script>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>💼 Sistema de Contas a Pagar</h1>
-            <p>Controle suas finanças em tempo real com Firebase</p>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <div class="logo">
+                    <i data-feather="trending-up" class="logo-icon"></i>
+                    <h1>Finanças Pro</h1>
+                </div>
+                <div class="header-actions">
+                    <button class="btn-icon" id="themeToggle" title="Alternar tema">
+                        <i data-feather="moon"></i>
+                    </button>
+                </div>
+            </div>
         </header>
-        
-        <!-- Configuração do Firebase -->
-        <section class="firebase-config card">
-            <h3>⚙️ Configuração do Firebase</h3>
-            <div class="firebase-status" id="firebaseStatus">
-                <div class="status-disconnected">● Desconectado</div>
-                <button id="connectFirebase">🔗 Conectar ao Firebase</button>
-            </div>
-        </section>
-        
-        <!-- Dashboard de Saldo -->
-        <section class="dashboard">
-            <div class="card saldo-card">
-                <h2>💰 Saldo Geral</h2>
-                <div class="saldo-valor" id="saldoGeral">R$ 0,00</div>
-                <div class="saldo-detalhes">
-                    <p>Salário Sammia: <span id="salarioSammia">R$ 0,00</span></p>
-                    <p>Salário Samuel: <span id="salarioSamuel">R$ 0,00</span></p>
-                    <p>Gastos Pagos: <span id="gastosPagos">R$ 0,00</span></p>
-                    <p>Reserva: <span id="reservaDashboard">R$ 0,00</span></p>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Firebase Configuration -->
+            <section class="firebase-config card">
+                <div class="card-header">
+                    <i data-feather="database"></i>
+                    <h2>Conexão Firebase</h2>
                 </div>
-            </div>
-            
-            <!-- Cartão de Reserva - Estilo Nubank -->
-            <div class="card reserva-card">
-                <div class="reserva-header">
-                    <div class="reserva-logo">
-                        <!-- Onde trocar pela logo oficial do Nubank: substitua esta div por <img src="caminho/para/logo-nubank.png" alt="Nubank" style="height: 24px;"> -->
-                        NUBANK
+                <div class="firebase-status" id="firebaseStatus">
+                    <div class="status-indicator disconnected">
+                        <span class="status-dot"></span>
+                        Desconectado
                     </div>
-                    <div class="chip"></div>
+                    <button class="btn-primary" id="connectFirebase">
+                        <i data-feather="link"></i>
+                        Conectar ao Firebase
+                    </button>
                 </div>
-                <div class="card-number">•••• •••• •••• 1234</div>
-                <div class="reserva-valor" id="reservaValor">R$ 0,00</div>
-                <div class="card-holder">RESERVA DE EMERGÊNCIA</div>
-            </div>
-            
-            <!-- Lançamento de Saldos -->
-            <div class="card">
-                <h2>📊 Lançar Saldos</h2>
-                <form id="saldoForm">
-                    <div class="form-group">
-                        <label for="dataSaldo">Data do Saldo</label>
-                        <input type="date" id="dataSaldo" required>
+            </section>
+
+            <!-- Dashboard -->
+            <section class="dashboard-grid">
+                <!-- Saldo Geral -->
+                <div class="card balance-card">
+                    <div class="card-header">
+                        <i data-feather="dollar-sign"></i>
+                        <h2>Saldo Geral</h2>
                     </div>
-                    <div class="saldo-form">
-                        <div class="form-group">
-                            <label for="salarioSammiaInput">Salário Sammia (R$)</label>
-                            <input type="number" id="salarioSammiaInput" step="0.01" placeholder="0,00">
-                        </div>
-                        <div class="form-group">
-                            <label for="salarioSamuelInput">Salário Samuel (R$)</label>
-                            <input type="number" id="salarioSamuelInput" step="0.01" placeholder="0,00">
-                        </div>
-                        <div class="form-group">
-                            <label for="reservaInput">Reserva (R$)</label>
-                            <input type="number" id="reservaInput" step="0.01" placeholder="0,00">
-                        </div>
+                    <div class="balance-amount" id="saldoGeral">
+                        <span class="amount">R$ 0,00</span>
+                        <span class="trend positive" id="saldoTrend">
+                            <i data-feather="trending-up"></i>
+                        </span>
                     </div>
-                    <div class="saldo-actions">
-                        <button type="submit" class="btn-success">💾 Salvar Saldos</button>
-                        <button type="button" id="btnCarregarSaldos" class="btn-secondary">📥 Carregar Últimos</button>
-                    </div>
-                </form>
-                
-                <!-- Histórico de Saldos -->
-                <div class="historico-saldos">
-                    <h4 style="margin-bottom: 10px;">📅 Histórico Recente</h4>
-                    <div id="historicoSaldosBody">
-                        <div class="empty-state" style="padding: 20px;">
-                            <div>📊</div>
-                            <p>Nenhum saldo registrado</p>
+                    <div class="balance-details">
+                        <div class="detail-item">
+                            <span class="label">Salário Sammia</span>
+                            <span class="value" id="salarioSammia">R$ 0,00</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="label">Salário Samuel</span>
+                            <span class="value" id="salarioSamuel">R$ 0,00</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="label">Gastos Pagos</span>
+                            <span class="value negative" id="gastosPagos">R$ 0,00</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="label">Reserva</span>
+                            <span class="value" id="reservaDashboard">R$ 0,00</span>
                         </div>
                     </div>
                 </div>
-            </div>
-        </section>
-        
-        <!-- Seção de Gráficos -->
-        <section class="charts-section">
-            <div class="card chart-card">
-                <h2>📈 Evolução do Salário</h2>
-                <div class="chart-container">
-                    <canvas id="graficoEvolucaoSalario"></canvas>
+
+                <!-- Reserva -->
+                <div class="card reserve-card">
+                    <div class="card-header">
+                        <div class="bank-logo">
+                            <i data-feather="shield"></i>
+                            <span>Reserva</span>
+                        </div>
+                        <div class="chip">
+                            <div class="chip-line"></div>
+                            <div class="chip-line"></div>
+                            <div class="chip-line"></div>
+                        </div>
+                    </div>
+                    <div class="card-number">•••• •••• •••• 1234</div>
+                    <div class="reserve-amount" id="reservaValor">R$ 0,00</div>
+                    <div class="card-holder">RESERVA DE EMERGÊNCIA</div>
                 </div>
-            </div>
-            
-            <div class="card chart-card">
-                <h2>📊 Gastos por Mês</h2>
-                <div class="chart-container">
-                    <canvas id="graficoGastos"></canvas>
+
+                <!-- KPIs -->
+                <div class="card kpi-card">
+                    <div class="card-header">
+                        <i data-feather="bar-chart-2"></i>
+                        <h2>Resumo do Mês</h2>
+                    </div>
+                    <div class="kpi-grid">
+                        <div class="kpi-item">
+                            <div class="kpi-icon income">
+                                <i data-feather="arrow-down-left"></i>
+                            </div>
+                            <div class="kpi-content">
+                                <span class="kpi-value" id="totalReceitas">R$ 0,00</span>
+                                <span class="kpi-label">Receitas</span>
+                            </div>
+                        </div>
+                        <div class="kpi-item">
+                            <div class="kpi-icon expense">
+                                <i data-feather="arrow-up-right"></i>
+                            </div>
+                            <div class="kpi-content">
+                                <span class="kpi-value" id="totalDespesas">R$ 0,00</span>
+                                <span class="kpi-label">Despesas</span>
+                            </div>
+                        </div>
+                        <div class="kpi-item">
+                            <div class="kpi-icon pending">
+                                <i data-feather="clock"></i>
+                            </div>
+                            <div class="kpi-content">
+                                <span class="kpi-value" id="totalPendentes">0</span>
+                                <span class="kpi-label">Pendentes</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div>
-        </section>
-        
-        <!-- Conteúdo Principal -->
-        <section class="main-content">
-            <!-- Formulário de Lançamento -->
-            <div class="form-section">
-                <div class="card">
-                    <h2>➕ Lançar Gasto</h2>
-                    <form id="gastoForm">
-                        <input type="hidden" id="gastoId">
-                        <div class="form-group">
-                            <label for="titulo">Título</label>
-                            <input type="text" id="titulo" required placeholder="Ex: Aluguel, Luz, Mercado...">
-                        </div>
-                        <div class="form-group">
-                            <label for="valor">Valor (R$)</label>
-                            <input type="number" id="valor" step="0.01" required placeholder="0,00">
-                        </div>
-                        <div class="form-group">
-                            <label for="data">Data</label>
-                            <input type="date" id="data" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="categoria">Categoria</label>
-                            <select id="categoria" required>
-                                <option value="">Selecione uma categoria</option>
-                                <option value="Casa">Casa</option>
-                                <option value="Condomínio">Condomínio</option>
-                                <option value="Luz">Luz</option>
-                                <option value="Água">Água</option>
-                                <option value="Internet">Internet</option>
-                                <option value="Cartão">Cartão</option>
-                                <option value="Celular">Celular</option>
-                                <option value="Saúde">Saúde</option>
-                                <option value="Transporte">Transporte</option>
-                                <option value="Alimentação">Alimentação</option>
-                                <option value="Lazer">Lazer</option>
-                                <option value="Outros">Outros</option>
+            </section>
+
+            <!-- Charts Section -->
+            <section class="charts-section">
+                <!-- Gastos por Categoria -->
+                <div class="card chart-card">
+                    <div class="card-header">
+                        <i data-feather="pie-chart"></i>
+                        <h2>Gastos por Categoria</h2>
+                        <div class="chart-controls">
+                            <select id="filtroMesCategoria" class="select-small">
+                                <option value="">Todos os meses</option>
+                                <option value="1">Janeiro</option>
+                                <option value="2">Fevereiro</option>
+                                <option value="3">Março</option>
+                                <option value="4">Abril</option>
+                                <option value="5">Maio</option>
+                                <option value="6">Junho</option>
+                                <option value="7">Julho</option>
+                                <option value="8">Agosto</option>
+                                <option value="9">Setembro</option>
+                                <option value="10">Outubro</option>
+                                <option value="11">Novembro</option>
+                                <option value="12">Dezembro</option>
+                            </select>
+                            <select id="filtroAnoCategoria" class="select-small">
+                                <option value="">Todos os anos</option>
                             </select>
                         </div>
-                        <div class="form-group">
-                            <label for="status">Status</label>
-                            <select id="status" required>
-                                <option value="Pendente">Pendente</option>
-                                <option value="Pago">Pago</option>
-                            </select>
-                        </div>
-                        <div class="actions">
-                            <button type="submit" id="btnSalvar">💾 Salvar</button>
-                            <button type="button" id="btnCancelar" class="btn-secondary">❌ Cancelar</button>
-                        </div>
-                    </form>
-                </div>
-                
-                <!-- Importar/Exportar -->
-                <div class="card">
-                    <h2>📁 Importar/Exportar Dados</h2>
-                    <div class="import-export">
-                        <input type="file" id="fileInput" accept=".xlsx, .xls" class="hidden">
-                        <button id="btnImportar" class="btn-secondary">📤 Importar Excel</button>
-                        <button id="btnExportar" class="btn-secondary">📥 Exportar Dados</button>
                     </div>
-                    <div class="saldo-detalhes" style="margin-top: 15px;">
-                        <p><small>💡 Dica: O Excel deve ter as colunas: Data, Título, Valor, Categoria, Status</small></p>
+                    <div class="chart-container">
+                        <canvas id="graficoCategorias"></canvas>
                     </div>
                 </div>
-            </div>
-            
-            <!-- Lista de Gastos -->
-            <div>
-                <!-- Filtros -->
-                <div class="card">
-                    <h2>📋 Gastos</h2>
-                    <div class="filters">
-                        <select id="filtroStatus">
-                            <option value="">Todos os Status</option>
-                            <option value="Pago">Pago</option>
-                            <option value="Pendente">Pendente</option>
-                        </select>
-                        <select id="filtroMes">
-                            <option value="">Todos os Meses</option>
-                            <option value="1">Janeiro</option>
-                            <option value="2">Fevereiro</option>
-                            <option value="3">Março</option>
-                            <option value="4">Abril</option>
-                            <option value="5">Maio</option>
-                            <option value="6">Junho</option>
-                            <option value="7">Julho</option>
-                            <option value="8">Agosto</option>
-                            <option value="9">Setembro</option>
-                            <option value="10">Outubro</option>
-                            <option value="11">Novembro</option>
-                            <option value="12">Dezembro</option>
-                        </select>
-                        <select id="filtroAno">
-                            <option value="">Todos os Anos</option>
-                            <!-- Os anos serão preenchidos dinamicamente -->
-                        </select>
-                        <button id="btnLimparFiltros" class="btn-secondary">🔄 Limpar Filtros</button>
+
+                <!-- Gráficos em Grid -->
+                <div class="charts-grid">
+                    <div class="card chart-card">
+                        <div class="card-header">
+                            <i data-feather="trending-up"></i>
+                            <h2>Evolução do Salário</h2>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="graficoEvolucaoSalario"></canvas>
+                        </div>
                     </div>
                     
-                    <!-- Tabela de Gastos -->
-                    <div style="overflow-x: auto;">
-                        <table id="tabelaGastos">
-                            <thead>
-                                <tr>
-                                    <th>Data</th>
-                                    <th>Título</th>
-                                    <th>Categoria</th>
-                                    <th>Valor</th>
-                                    <th>Status</th>
-                                    <th>Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tabelaGastosBody">
-                                <tr>
-                                    <td colspan="6" class="empty-state">
-                                        <div>📊</div>
-                                        <p>Nenhum gasto cadastrado</p>
-                                        <p><small>Adicione gastos usando o formulário ao lado</small></p>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <div class="card chart-card">
+                        <div class="card-header">
+                            <i data-feather="bar-chart-2"></i>
+                            <h2>Gastos por Mês</h2>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="graficoGastos"></canvas>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </section>
+            </section>
+
+            <!-- Content Grid -->
+            <section class="content-grid">
+                <!-- Left Column - Forms -->
+                <div class="content-column">
+                    <!-- Lançar Saldos -->
+                    <div class="card">
+                        <div class="card-header">
+                            <i data-feather="plus-circle"></i>
+                            <h2>Lançar Saldos</h2>
+                        </div>
+                        <form id="saldoForm" class="form">
+                            <div class="form-group">
+                                <label for="dataSaldo">Data do Saldo</label>
+                                <input type="date" id="dataSaldo" required>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="salarioSammiaInput">Salário Sammia (R$)</label>
+                                    <input type="number" id="salarioSammiaInput" step="0.01" placeholder="0,00">
+                                </div>
+                                <div class="form-group">
+                                    <label for="salarioSamuelInput">Salário Samuel (R$)</label>
+                                    <input type="number" id="salarioSamuelInput" step="0.01" placeholder="0,00">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="reservaInput">Reserva (R$)</label>
+                                <input type="number" id="reservaInput" step="0.01" placeholder="0,00">
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn-primary">
+                                    <i data-feather="save"></i>
+                                    Salvar Saldos
+                                </button>
+                                <button type="button" id="btnCarregarSaldos" class="btn-secondary">
+                                    <i data-feather="download"></i>
+                                    Carregar Últimos
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Histórico de Saldos -->
+                        <div class="history-section">
+                            <h3 class="section-title">
+                                <i data-feather="history"></i>
+                                Histórico Recente
+                            </h3>
+                            <div class="history-list" id="historicoSaldosBody">
+                                <div class="empty-state">
+                                    <i data-feather="database"></i>
+                                    <p>Nenhum saldo registrado</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Lançar Gasto -->
+                    <div class="card">
+                        <div class="card-header">
+                            <i data-feather="plus"></i>
+                            <h2>Lançar Gasto</h2>
+                        </div>
+                        <form id="gastoForm" class="form">
+                            <input type="hidden" id="gastoId">
+                            <div class="form-group">
+                                <label for="titulo">Título</label>
+                                <input type="text" id="titulo" required placeholder="Ex: Aluguel, Luz, Mercado...">
+                            </div>
+                            <div class="form-group">
+                                <label for="valor">Valor (R$)</label>
+                                <input type="number" id="valor" step="0.01" required placeholder="0,00">
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="data">Data</label>
+                                    <input type="date" id="data" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="categoria">Categoria</label>
+                                    <select id="categoria" required>
+                                        <option value="">Selecione uma categoria</option>
+                                        <option value="Casa">Casa</option>
+                                        <option value="Condomínio">Condomínio</option>
+                                        <option value="Luz">Luz</option>
+                                        <option value="Água">Água</option>
+                                        <option value="Internet">Internet</option>
+                                        <option value="Cartão">Cartão</option>
+                                        <option value="Celular">Celular</option>
+                                        <option value="Saúde">Saúde</option>
+                                        <option value="Transporte">Transporte</option>
+                                        <option value="Alimentação">Alimentação</option>
+                                        <option value="Lazer">Lazer</option>
+                                        <option value="Outros">Outros</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="status">Status</label>
+                                <select id="status" required>
+                                    <option value="Pendente">Pendente</option>
+                                    <option value="Pago">Pago</option>
+                                </select>
+                            </div>
+                            <div class="form-actions">
+                                <button type="submit" class="btn-primary" id="btnSalvar">
+                                    <i data-feather="save"></i>
+                                    Salvar
+                                </button>
+                                <button type="button" id="btnCancelar" class="btn-secondary">
+                                    <i data-feather="x"></i>
+                                    Cancelar
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Importar/Exportar -->
+                    <div class="card">
+                        <div class="card-header">
+                            <i data-feather="file-text"></i>
+                            <h2>Importar/Exportar Dados</h2>
+                        </div>
+                        <div class="import-export-actions">
+                            <input type="file" id="fileInput" accept=".xlsx, .xls" class="hidden">
+                            <button id="btnImportar" class="btn-secondary">
+                                <i data-feather="upload"></i>
+                                Importar Excel
+                            </button>
+                            <button id="btnExportar" class="btn-secondary">
+                                <i data-feather="download"></i>
+                                Exportar Dados
+                            </button>
+                        </div>
+                        <div class="help-text">
+                            <i data-feather="info"></i>
+                            <span>O Excel deve ter as colunas: Data, Título, Valor, Categoria, Status</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column - Gastos -->
+                <div class="content-column">
+                    <div class="card">
+                        <div class="card-header">
+                            <i data-feather="list"></i>
+                            <h2>Gastos</h2>
+                            <div class="header-actions">
+                                <button id="btnLimparFiltros" class="btn-secondary btn-small">
+                                    <i data-feather="refresh-cw"></i>
+                                    Limpar
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Filtros -->
+                        <div class="filters">
+                            <select id="filtroStatus">
+                                <option value="">Todos os Status</option>
+                                <option value="Pago">Pago</option>
+                                <option value="Pendente">Pendente</option>
+                            </select>
+                            <select id="filtroMes">
+                                <option value="">Todos os Meses</option>
+                                <option value="1">Janeiro</option>
+                                <option value="2">Fevereiro</option>
+                                <option value="3">Março</option>
+                                <option value="4">Abril</option>
+                                <option value="5">Maio</option>
+                                <option value="6">Junho</option>
+                                <option value="7">Julho</option>
+                                <option value="8">Agosto</option>
+                                <option value="9">Setembro</option>
+                                <option value="10">Outubro</option>
+                                <option value="11">Novembro</option>
+                                <option value="12">Dezembro</option>
+                            </select>
+                            <select id="filtroAno">
+                                <option value="">Todos os Anos</option>
+                            </select>
+                        </div>
+
+                        <!-- Tabela de Gastos -->
+                        <div class="table-container">
+                            <table id="tabelaGastos">
+                                <thead>
+                                    <tr>
+                                        <th>Data</th>
+                                        <th>Título</th>
+                                        <th>Categoria</th>
+                                        <th>Valor</th>
+                                        <th>Status</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tabelaGastosBody">
+                                    <tr>
+                                        <td colspan="6" class="empty-state">
+                                            <i data-feather="database"></i>
+                                            <div>
+                                                <p>Nenhum gasto cadastrado</p>
+                                                <small>Adicione gastos usando o formulário ao lado</small>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
     </div>
 
+    <!-- Loading Overlay -->
+    <div class="loading-overlay hidden" id="loadingOverlay">
+        <div class="loading-spinner">
+            <i data-feather="loader"></i>
+            <span>Carregando...</span>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
     <script>
-        // ===========================================
-        // CONFIGURAÇÃO DO FIREBASE
-        // ===========================================
-        
-        const firebaseConfig = {
-            apiKey: "AIzaSyAmA2N4mzTXHch7Jn9hRwYuPlggrRKuhsE",
-            authDomain: "contas-a-pagar-sksb.firebaseapp.com",
-            databaseURL: "https://contas-a-pagar-sksb-default-rtdb.firebaseio.com",
-            projectId: "contas-a-pagar-sksb",
-            storageBucket: "contas-a-pagar-sksb.firebasestorage.app",
-            messagingSenderId: "973753818928",
-            appId: "1:973753818928:web:23b36f5fe8aaa1a0fef2f5",
-            measurementId: "G-3HEB0S3X12"
-        };
-
-        // ===========================================
-        // INICIALIZAÇÃO DO FIREBASE
-        // ===========================================
-        
-        // Variáveis globais
-        let db;
-        let gastosCollection;
-        let saldosCollection;
-        let gastosUnsubscribe;
-        let saldosUnsubscribe;
-        let chartGastos;
-        let chartEvolucaoSalario;
-        let todosGastos = []; // Array para armazenar todos os gastos
-        let todosSaldos = []; // Array para armazenar todos os saldos
-        
-        // Elementos DOM
-        const connectFirebaseBtn = document.getElementById('connectFirebase');
-        const firebaseStatus = document.getElementById('firebaseStatus');
-        const gastoForm = document.getElementById('gastoForm');
-        const saldoForm = document.getElementById('saldoForm');
-        const btnSalvar = document.getElementById('btnSalvar');
-        const btnCancelar = document.getElementById('btnCancelar');
-        const btnCarregarSaldos = document.getElementById('btnCarregarSaldos');
-        const btnImportar = document.getElementById('btnImportar');
-        const btnExportar = document.getElementById('btnExportar');
-        const btnLimparFiltros = document.getElementById('btnLimparFiltros');
-        const fileInput = document.getElementById('fileInput');
-        const tabelaGastosBody = document.getElementById('tabelaGastosBody');
-        const historicoSaldosBody = document.getElementById('historicoSaldosBody');
-        const filtroStatus = document.getElementById('filtroStatus');
-        const filtroMes = document.getElementById('filtroMes');
-        const filtroAno = document.getElementById('filtroAno');
-        
-        // Conectar ao Firebase automaticamente
-        document.addEventListener('DOMContentLoaded', () => {
-            conectarFirebase();
-            
-            // Adicionar event listeners para os filtros
-            filtroStatus.addEventListener('change', aplicarFiltros);
-            filtroMes.addEventListener('change', aplicarFiltros);
-            filtroAno.addEventListener('change', aplicarFiltros);
-        });
-        
-        // Função para conectar ao Firebase
-        function conectarFirebase() {
-            try {
-                // Inicializar Firebase
-                firebase.initializeApp(firebaseConfig);
-                db = firebase.firestore();
-                
-                // Referências às coleções
-                gastosCollection = db.collection('gastos');
-                saldosCollection = db.collection('saldos');
-                
-                // Iniciar listeners em tempo real
-                iniciarListeners();
-                
-                // Atualizar status
-                firebaseStatus.innerHTML = `
-                    <div class="status-connected">● Conectado</div>
-                    <button onclick="testarConexao()">🔄 Testar Conexão</button>
-                `;
-                
-                console.log('✅ Conectado ao Firebase com sucesso!');
-            } catch (error) {
-                console.error('Erro ao conectar ao Firebase:', error);
-                firebaseStatus.innerHTML = `
-                    <div class="status-disconnected">● Erro na conexão</div>
-                    <button id="connectFirebase">🔄 Tentar Novamente</button>
-                `;
-                document.getElementById('connectFirebase').addEventListener('click', conectarFirebase);
-            }
-        }
-        
-        // Testar conexão
-        window.testarConexao = async () => {
-            try {
-                await db.collection('test').doc('test').get();
-                alert('✅ Conexão com Firebase está funcionando!');
-            } catch (error) {
-                alert('❌ Erro na conexão com Firebase');
-            }
-        };
-
-        // ===========================================
-        // FUNÇÕES PRINCIPAIS DO SISTEMA
-        // ===========================================
-        
-        // Iniciar listeners em tempo real para Firestore
-        function iniciarListeners() {
-            // Listener para gastos
-            gastosUnsubscribe = gastosCollection
-                .orderBy('data', 'desc')
-                .onSnapshot((snapshot) => {
-                    todosGastos = [];
-                    snapshot.forEach(doc => {
-                        todosGastos.push({ id: doc.id, ...doc.data() });
-                    });
-                    aplicarFiltros(); // Aplicar filtros quando os dados mudarem
-                    atualizarGraficoGastos(todosGastos);
-                    atualizarDashboard(todosGastos, todosSaldos);
-                }, (error) => {
-                    console.error('Erro ao carregar gastos:', error);
-                });
-            
-            // Listener para saldos
-            saldosUnsubscribe = saldosCollection
-                .orderBy('data', 'desc')
-                .onSnapshot((snapshot) => {
-                    todosSaldos = [];
-                    snapshot.forEach(doc => {
-                        todosSaldos.push({ id: doc.id, ...doc.data() });
-                    });
-                    atualizarDashboard(todosGastos, todosSaldos);
-                    atualizarHistoricoSaldos(todosSaldos);
-                    atualizarGraficoEvolucaoSalario(todosSaldos);
-                }, (error) => {
-                    console.error('Erro ao carregar saldos:', error);
-                });
-        }
-        
-        // Função para aplicar todos os filtros
-        function aplicarFiltros() {
-            if (todosGastos.length === 0) return;
-            
-            const statusFiltro = filtroStatus.value;
-            const mesFiltro = filtroMes.value;
-            const anoFiltro = filtroAno.value;
-            
-            console.log('Aplicando filtros:', { statusFiltro, mesFiltro, anoFiltro });
-            
-            const gastosFiltrados = todosGastos.filter(gasto => {
-                const dataGasto = new Date(gasto.data);
-                const gastoMes = (dataGasto.getMonth() + 1).toString();
-                const gastoAno = dataGasto.getFullYear().toString();
-                
-                // Debug: verificar dados de cada gasto
-                console.log('Gasto:', {
-                    titulo: gasto.titulo,
-                    status: gasto.status,
-                    data: gasto.data,
-                    mes: gastoMes,
-                    ano: gastoAno
-                });
-                
-                const statusMatch = !statusFiltro || gasto.status === statusFiltro;
-                const mesMatch = !mesFiltro || gastoMes === mesFiltro;
-                const anoMatch = !anoFiltro || gastoAno === anoFiltro;
-                
-                return statusMatch && mesMatch && anoMatch;
-            });
-            
-            console.log('Gastos filtrados:', gastosFiltrados.length);
-            
-            atualizarTabelaGastos(gastosFiltrados);
-        }
-        
-        // Atualizar tabela de gastos
-        function atualizarTabelaGastos(gastos) {
-            // Limpar tabela
-            tabelaGastosBody.innerHTML = '';
-            
-            // Preencher tabela ou mostrar estado vazio
-            if (gastos.length === 0) {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td colspan="6" class="empty-state">
-                        <div>🔍</div>
-                        <p>Nenhum gasto encontrado</p>
-                        <p><small>Tente alterar os filtros ou adicionar novos gastos</small></p>
-                    </td>
-                `;
-                tabelaGastosBody.appendChild(tr);
-                return;
-            }
-            
-            // Preencher tabela com dados
-            gastos.forEach(gasto => {
-                const dataFormatada = formatarData(gasto.data);
-                const valorFormatado = formatarMoeda(gasto.valor);
-                
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${dataFormatada}</td>
-                    <td>${gasto.titulo}</td>
-                    <td>${gasto.categoria}</td>
-                    <td>${valorFormatado}</td>
-                    <td class="status-${gasto.status.toLowerCase()}">${gasto.status}</td>
-                    <td>
-                        <button class="btn-warning" onclick="editarGasto('${gasto.id}')">✏️ Editar</button>
-                        <button class="btn-danger" onclick="excluirGasto('${gasto.id}')">🗑️ Excluir</button>
-                        <button class="${gasto.status === 'Pago' ? 'btn-secondary' : 'btn-success'}" 
-                                onclick="alternarStatus('${gasto.id}', '${gasto.status}')">
-                            ${gasto.status === 'Pago' ? '⏳ Pendente' : '✅ Pago'}
-                        </button>
-                    </td>
-                `;
-                tabelaGastosBody.appendChild(tr);
-            });
-        }
-        
-        // Atualizar histórico de saldos
-        function atualizarHistoricoSaldos(saldos) {
-            historicoSaldosBody.innerHTML = '';
-            
-            if (saldos.length === 0) {
-                historicoSaldosBody.innerHTML = `
-                    <div class="empty-state" style="padding: 20px;">
-                        <div>📊</div>
-                        <p>Nenhum saldo registrado</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            // Mostrar apenas os 10 mais recentes
-            const saldosRecentes = saldos.slice(0, 10);
-            
-            saldosRecentes.forEach(saldo => {
-                const dataFormatada = formatarData(saldo.data);
-                const total = (saldo.salarioSammia || 0) + (saldo.salarioSamuel || 0) + (saldo.reserva || 0);
-                
-                const div = document.createElement('div');
-                div.className = 'historico-item';
-                div.innerHTML = `
-                    <span>${dataFormatada}</span>
-                    <span>${formatarMoeda(total)}</span>
-                `;
-                div.addEventListener('click', () => carregarSaldoEspecifico(saldo));
-                historicoSaldosBody.appendChild(div);
-            });
-        }
-        
-        // Atualizar gráfico de gastos
-        function atualizarGraficoGastos(gastos) {
-            const ctx = document.getElementById('graficoGastos').getContext('2d');
-            
-            // Agrupar gastos por mês/ano
-            const gastosPorMes = {};
-            
-            gastos.forEach(gasto => {
-                if (gasto.status === 'Pago') {
-                    const data = new Date(gasto.data);
-                    const chave = `${data.getFullYear()}-${data.getMonth() + 1}`;
-                    
-                    if (!gastosPorMes[chave]) {
-                        gastosPorMes[chave] = 0;
-                    }
-                    
-                    gastosPorMes[chave] += gasto.valor;
-                }
-            });
-            
-            // Preparar dados para o gráfico
-            const meses = Object.keys(gastosPorMes).sort();
-            const labels = meses.map(mes => {
-                const [ano, mesNum] = mes.split('-');
-                const nomeMes = new Date(ano, mesNum - 1).toLocaleDateString('pt-BR', { month: 'short' });
-                return `${nomeMes}/${ano}`;
-            });
-            const valores = meses.map(mes => gastosPorMes[mes]);
-            
-            // Destruir gráfico anterior se existir
-            if (chartGastos) {
-                chartGastos.destroy();
-            }
-            
-            // Criar novo gráfico
-            chartGastos = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Gastos por Mês (R$)',
-                        data: valores,
-                        backgroundColor: 'rgba(0, 212, 170, 0.7)',
-                        borderColor: 'rgba(0, 212, 170, 1)',
-                        borderWidth: 1,
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: {
-                                color: 'rgba(255,255,255,0.1)'
-                            },
-                            ticks: {
-                                color: 'rgba(255,255,255,0.7)',
-                                callback: function(value) {
-                                    return 'R$ ' + value.toLocaleString('pt-BR');
-                                }
-                            }
-                        },
-                        x: {
-                            grid: {
-                                color: 'rgba(255,255,255,0.1)'
-                            },
-                            ticks: {
-                                color: 'rgba(255,255,255,0.7)'
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            labels: {
-                                color: 'rgba(255,255,255,0.7)'
-                            }
-                        },
-                        tooltip: {
-                            backgroundColor: 'rgba(45,45,45,0.9)',
-                            titleColor: 'rgba(255,255,255,0.9)',
-                            bodyColor: 'rgba(255,255,255,0.9)',
-                            callbacks: {
-                                label: function(context) {
-                                    return 'R$ ' + context.raw.toLocaleString('pt-BR');
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        }
-        
-        // Atualizar gráfico de evolução do salário
-        function atualizarGraficoEvolucaoSalario(saldos) {
-            const ctx = document.getElementById('graficoEvolucaoSalario').getContext('2d');
-            
-            // Ordenar saldos por data
-            const saldosOrdenados = [...saldos].sort((a, b) => new Date(a.data) - new Date(b.data));
-            
-            // Preparar dados para o gráfico
-            const labels = saldosOrdenados.map(saldo => formatarData(saldo.data));
-            const salarioSammia = saldosOrdenados.map(saldo => saldo.salarioSammia || 0);
-            const salarioSamuel = saldosOrdenados.map(saldo => saldo.salarioSamuel || 0);
-            const totalSalarios = saldosOrdenados.map(saldo => (saldo.salarioSammia || 0) + (saldo.salarioSamuel || 0));
-            
-            // Destruir gráfico anterior se existir
-            if (chartEvolucaoSalario) {
-                chartEvolucaoSalario.destroy();
-            }
-            
-            // Criar novo gráfico
-            chartEvolucaoSalario = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            label: 'Salário Sammia',
-                            data: salarioSammia,
-                            borderColor: 'rgba(255, 99, 132, 1)',
-                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                            tension: 0.3,
-                            fill: false
-                        },
-                        {
-                            label: 'Salário Samuel',
-                            data: salarioSamuel,
-                            borderColor: 'rgba(54, 162, 235, 1)',
-                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                            tension: 0.3,
-                            fill: false
-                        },
-                        {
-                            label: 'Total Salários',
-                            data: totalSalarios,
-                            borderColor: 'rgba(0, 212, 170, 1)',
-                            backgroundColor: 'rgba(0, 212, 170, 0.2)',
-                            tension: 0.3,
-                            fill: false
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: {
-                                color: 'rgba(255,255,255,0.1)'
-                            },
-                            ticks: {
-                                color: 'rgba(255,255,255,0.7)',
-                                callback: function(value) {
-                                    return 'R$ ' + value.toLocaleString('pt-BR');
-                                }
-                            }
-                        },
-                        x: {
-                            grid: {
-                                color: 'rgba(255,255,255,0.1)'
-                            },
-                            ticks: {
-                                color: 'rgba(255,255,255,0.7)'
-                            }
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            labels: {
-                                color: 'rgba(255,255,255,0.7)'
-                            }
-                        },
-                        tooltip: {
-                            backgroundColor: 'rgba(45,45,45,0.9)',
-                            titleColor: 'rgba(255,255,255,0.9)',
-                            bodyColor: 'rgba(255,255,255,0.9)',
-                            callbacks: {
-                                label: function(context) {
-                                    return context.dataset.label + ': R$ ' + context.raw.toLocaleString('pt-BR');
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        }
-        
-        // Atualizar dashboard com saldos - VERSÃO CORRIGIDA
-        function atualizarDashboard(gastos, saldos) {
-            // Se temos saldos históricos, usar o mais recente para mostrar os valores atuais
-            if (saldos && saldos.length > 0) {
-                const saldoMaisRecente = saldos[0];
-                document.getElementById('salarioSammia').textContent = formatarMoeda(saldoMaisRecente.salarioSammia || 0);
-                document.getElementById('salarioSamuel').textContent = formatarMoeda(saldoMaisRecente.salarioSamuel || 0);
-                document.getElementById('reservaValor').textContent = formatarMoeda(saldoMaisRecente.reserva || 0);
-                document.getElementById('reservaDashboard').textContent = formatarMoeda(saldoMaisRecente.reserva || 0);
-            }
-            
-            // Se gastos foram fornecidos, calcular gastos pagos
-            if (gastos) {
-                const gastosPagos = gastos
-                    .filter(gasto => gasto.status === 'Pago')
-                    .reduce((total, gasto) => total + gasto.valor, 0);
-                
-                document.getElementById('gastosPagos').textContent = formatarMoeda(gastosPagos);
-                
-                // Calcular saldo geral CORRETAMENTE
-                // Obter valores dos salários e reserva do saldo mais recente
-                const salarioSammia = saldos && saldos.length > 0 ? (saldos[0].salarioSammia || 0) : 0;
-                const salarioSamuel = saldos && saldos.length > 0 ? (saldos[0].salarioSamuel || 0) : 0;
-                const reserva = saldos && saldos.length > 0 ? (saldos[0].reserva || 0) : 0;
-                
-                // Saldo geral = (Salário Sammia + Salário Samuel + Reserva) - Gastos Pagos
-                const saldoGeral = (salarioSammia + salarioSamuel + reserva) - gastosPagos;
-                
-                const saldoGeralElement = document.getElementById('saldoGeral');
-                saldoGeralElement.textContent = formatarMoeda(saldoGeral);
-                
-                // Adicionar classe para saldo negativo
-                if (saldoGeral < 0) {
-                    saldoGeralElement.classList.add('saldo-negativo');
-                } else {
-                    saldoGeralElement.classList.remove('saldo-negativo');
-                }
-            }
-        }
-        
-        // ===========================================
-        // CRUD DE GASTOS E SALDOS
-        // ===========================================
-        
-        // Salvar gasto (criar ou editar)
-        gastoForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            if (!db) {
-                alert('⚠️ Conecte-se ao Firebase primeiro!');
-                return;
-            }
-            
-            const id = document.getElementById('gastoId').value;
-            const titulo = document.getElementById('titulo').value;
-            const valor = parseFloat(document.getElementById('valor').value);
-            const data = document.getElementById('data').value;
-            const categoria = document.getElementById('categoria').value;
-            const status = document.getElementById('status').value;
-            
-            const gasto = {
-                titulo,
-                valor,
-                data,
-                categoria,
-                status,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            };
-            
-            try {
-                if (id) {
-                    // Atualizar gasto existente
-                    await gastosCollection.doc(id).update(gasto);
-                } else {
-                    // Criar novo gasto
-                    await gastosCollection.add(gasto);
-                }
-                
-                // Limpar formulário
-                limparFormulario();
-            } catch (error) {
-                console.error('Erro ao salvar gasto:', error);
-                alert('❌ Erro ao salvar gasto. Tente novamente.');
-            }
-        });
-        
-        // Salvar saldos com data
-        saldoForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            if (!db) {
-                alert('⚠️ Conecte-se ao Firebase primeiro!');
-                return;
-            }
-            
-            const dataSaldo = document.getElementById('dataSaldo').value;
-            const salarioSammia = parseFloat(document.getElementById('salarioSammiaInput').value) || 0;
-            const salarioSamuel = parseFloat(document.getElementById('salarioSamuelInput').value) || 0;
-            const reserva = parseFloat(document.getElementById('reservaInput').value) || 0;
-            
-            const saldo = {
-                data: dataSaldo,
-                salarioSammia,
-                salarioSamuel,
-                reserva,
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
-            };
-            
-            try {
-                // Salvar como um novo documento com data específica
-                await saldosCollection.add(saldo);
-                
-                alert('✅ Saldos salvos com sucesso!');
-                saldoForm.reset();
-                document.getElementById('dataSaldo').valueAsDate = new Date();
-            } catch (error) {
-                console.error('Erro ao salvar saldos:', error);
-                alert('❌ Erro ao salvar saldos. Tente novamente.');
-            }
-        });
-        
-        // Carregar saldo específico do histórico
-        function carregarSaldoEspecifico(saldo) {
-            document.getElementById('dataSaldo').value = saldo.data;
-            document.getElementById('salarioSammiaInput').value = saldo.salarioSammia || '';
-            document.getElementById('salarioSamuelInput').value = saldo.salarioSamuel || '';
-            document.getElementById('reservaInput').value = saldo.reserva || '';
-        }
-        
-        // Carregar últimos saldos
-        btnCarregarSaldos.addEventListener('click', async () => {
-            if (!db) {
-                alert('⚠️ Conecte-se ao Firebase primeiro!');
-                return;
-            }
-            
-            try {
-                const snapshot = await saldosCollection
-                    .orderBy('timestamp', 'desc')
-                    .limit(1)
-                    .get();
-                
-                if (!snapshot.empty) {
-                    const saldo = snapshot.docs[0].data();
-                    carregarSaldoEspecifico(saldo);
-                } else {
-                    alert('ℹ️ Nenhum saldo anterior encontrado.');
-                }
-            } catch (error) {
-                console.error('Erro ao carregar saldos:', error);
-                alert('❌ Erro ao carregar saldos. Tente novamente.');
-            }
-        });
-        
-        // Editar gasto
-        window.editarGasto = async (id) => {
-            try {
-                const doc = await gastosCollection.doc(id).get();
-                if (doc.exists) {
-                    const gasto = doc.data();
-                    
-                    document.getElementById('gastoId').value = id;
-                    document.getElementById('titulo').value = gasto.titulo;
-                    document.getElementById('valor').value = gasto.valor;
-                    document.getElementById('data').value = gasto.data;
-                    document.getElementById('categoria').value = gasto.categoria;
-                    document.getElementById('status').value = gasto.status;
-                    
-                    // Rolar para o formulário
-                    document.getElementById('gastoForm').scrollIntoView({ behavior: 'smooth' });
-                }
-            } catch (error) {
-                console.error('Erro ao carregar gasto para edição:', error);
-                alert('❌ Erro ao carregar gasto para edição.');
-            }
-        };
-        
-        // Excluir gasto
-        window.excluirGasto = async (id) => {
-            if (confirm('⚠️ Tem certeza que deseja excluir este gasto?')) {
-                try {
-                    await gastosCollection.doc(id).delete();
-                } catch (error) {
-                    console.error('Erro ao excluir gasto:', error);
-                    alert('❌ Erro ao excluir gasto. Tente novamente.');
-                }
-            }
-        };
-        
-        // Alternar status do gasto
-        window.alternarStatus = async (id, statusAtual) => {
-            const novoStatus = statusAtual === 'Pago' ? 'Pendente' : 'Pago';
-            
-            try {
-                await gastosCollection.doc(id).update({ 
-                    status: novoStatus,
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                });
-            } catch (error) {
-                console.error('Erro ao alterar status do gasto:', error);
-                alert('❌ Erro ao alterar status do gasto. Tente novamente.');
-            }
-        };
-        
-        // Cancelar edição
-        btnCancelar.addEventListener('click', limparFormulario);
-        
-        // Limpar formulário
-        function limparFormulario() {
-            document.getElementById('gastoId').value = '';
-            document.getElementById('gastoForm').reset();
-            document.getElementById('data').valueAsDate = new Date();
-        }
-        
-        // ===========================================
-        // IMPORTAR/EXPORTAR DADOS
-        // ===========================================
-        
-        // Importar dados do Excel
-        btnImportar.addEventListener('click', () => {
-            fileInput.click();
-        });
-        
-        fileInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            
-            if (!db) {
-                alert('⚠️ Conecte-se ao Firebase primeiro!');
-                return;
-            }
-            
-            if (!confirm('📥 Isso irá importar todos os dados do Excel para o Firebase. Continuar?')) {
-                fileInput.value = '';
-                return;
-            }
-            
-            try {
-                const data = await readExcelFile(file);
-                const importados = await importarDadosParaFirestore(data);
-                alert(`✅ ${importados} dados importados com sucesso!`);
-                fileInput.value = '';
-            } catch (error) {
-                console.error('Erro ao importar dados:', error);
-                alert('❌ Erro ao importar dados. Verifique o formato do arquivo.');
-            }
-        });
-        
-        // Exportar dados
-        btnExportar.addEventListener('click', async () => {
-            if (!db) {
-                alert('⚠️ Conecte-se ao Firebase primeiro!');
-                return;
-            }
-            
-            try {
-                const snapshot = await gastosCollection.get();
-                const gastos = [];
-                
-                snapshot.forEach(doc => {
-                    gastos.push({ id: doc.id, ...doc.data() });
-                });
-                
-                exportarParaJSON(gastos);
-            } catch (error) {
-                console.error('Erro ao exportar dados:', error);
-                alert('❌ Erro ao exportar dados. Tente novamente.');
-            }
-        });
-        
-        // Limpar filtros
-        btnLimparFiltros.addEventListener('click', () => {
-            filtroStatus.value = '';
-            filtroMes.value = '';
-            filtroAno.value = '';
-            aplicarFiltros(); // Reaplicar filtros após limpar
-        });
-        
-        // ===========================================
-        // FUNÇÕES AUXILIARES
-        // ===========================================
-        
-        // Ler arquivo Excel
-        function readExcelFile(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                
-                reader.onload = function(e) {
-                    try {
-                        const data = new Uint8Array(e.target.result);
-                        const workbook = XLSX.read(data, { type: 'array' });
-                        
-                        // Assumindo que os dados estão na primeira planilha
-                        const firstSheetName = workbook.SheetNames[0];
-                        const worksheet = workbook.Sheets[firstSheetName];
-                        
-                        // Converter para JSON
-                        const jsonData = XLSX.utils.sheet_to_json(worksheet);
-                        resolve(jsonData);
-                    } catch (error) {
-                        reject(error);
-                    }
-                };
-                
-                reader.onerror = function(error) {
-                    reject(error);
-                };
-                
-                reader.readAsArrayBuffer(file);
-            });
-        }
-        
-        // Importar dados para Firestore
-        async function importarDadosParaFirestore(data) {
-            let importados = 0;
-            
-            for (const item of data) {
-                // Mapear colunas do Excel para campos do Firestore
-                const gasto = {
-                    titulo: item.Título || item.titulo || item['Descrição'] || 'Sem título',
-                    valor: parseFloat(item.Valor || item.valor || item.Custo || 0),
-                    data: item.Data || item.data || item.Vencimento || new Date().toISOString().split('T')[0],
-                    categoria: item.Categoria || item.categoria || 'Outros',
-                    status: item.Status || item.status || item.Pago || 'Pendente',
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
-                };
-                
-                // Validar dados
-                if (gasto.titulo && !isNaN(gasto.valor) && gasto.valor > 0) {
-                    await gastosCollection.add(gasto);
-                    importados++;
-                }
-            }
-            
-            return importados;
-        }
-        
-        // Exportar para JSON
-        function exportarParaJSON(data) {
-            const dataStr = JSON.stringify(data, null, 2);
-            const dataBlob = new Blob([dataStr], { type: 'application/json' });
-            
-            const url = URL.createObjectURL(dataBlob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `gastos-${new Date().toISOString().split('T')[0]}.json`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
-        }
-        
-        // Atualizar filtro de anos
-        function atualizarFiltroAnos(gastos) {
-            const anosSet = new Set();
-            
-            gastos.forEach(gasto => {
-                const ano = new Date(gasto.data).getFullYear();
-                anosSet.add(ano);
-            });
-            
-            const anos = Array.from(anosSet).sort((a, b) => b - a);
-            const filtroAno = document.getElementById('filtroAno');
-            
-            // Salvar valor atual
-            const valorAtual = filtroAno.value;
-            
-            // Limpar opções (exceto a primeira)
-            while (filtroAno.options.length > 1) {
-                filtroAno.remove(1);
-            }
-            
-            // Adicionar anos
-            anos.forEach(ano => {
-                const option = document.createElement('option');
-                option.value = ano;
-                option.textContent = ano;
-                filtroAno.appendChild(option);
-            });
-            
-            // Restaurar valor anterior se ainda existir
-            if (anos.includes(parseInt(valorAtual))) {
-                filtroAno.value = valorAtual;
-            }
-        }
-        
-        // Formatar data para exibição
-        function formatarData(dataString) {
-            const data = new Date(dataString);
-            return data.toLocaleDateString('pt-BR');
-        }
-        
-        // Formatar moeda para exibição
-        function formatarMoeda(valor) {
-            return new Intl.NumberFormat('pt-BR', {
-                style: 'currency',
-                currency: 'BRL'
-            }).format(valor);
-        }
-        
-        // Configurar data atual como padrão
-        document.getElementById('data').valueAsDate = new Date();
-        document.getElementById('dataSaldo').valueAsDate = new Date();
+        feather.replace();
     </script>
 </body>
 </html>
