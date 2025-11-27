@@ -41,6 +41,7 @@ class FinanceApp {
         this.setupEventListeners();
         this.setupDefaultDates();
         this.setupTheme();
+        this.populateYearFilters();
         feather.replace();
     }
 
@@ -105,14 +106,15 @@ class FinanceApp {
                     <span class="status-dot"></span>
                     Conectado
                 </div>
-                <button class="btn-secondary" onclick="app.testConnection()">
+                <button class="btn-secondary" id="testConnection">
                     <i data-feather="refresh-cw"></i>
                     Testar Conexão
                 </button>
             `;
+            document.getElementById('testConnection').addEventListener('click', () => this.testConnection());
         } else {
             statusElement.innerHTML = `
-                <div class="status-indicator">
+                <div class="status-indicator disconnected">
                     <span class="status-dot"></span>
                     Desconectado
                 </div>
@@ -148,6 +150,7 @@ class FinanceApp {
         
         // Buttons
         document.getElementById('btnCancelar').addEventListener('click', () => this.clearGastoForm());
+        document.getElementById('btnCancelarSaldo').addEventListener('click', () => this.clearSaldoForm());
         document.getElementById('btnCarregarSaldos').addEventListener('click', () => this.loadLastSaldo());
         document.getElementById('btnImportar').addEventListener('click', () => this.triggerImport());
         document.getElementById('btnExportar').addEventListener('click', () => this.exportData());
@@ -171,6 +174,24 @@ class FinanceApp {
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('data').value = today;
         document.getElementById('dataSaldo').value = today;
+    }
+
+    populateYearFilters() {
+        const currentYear = new Date().getFullYear();
+        const yearSelects = [
+            document.getElementById('filtroAno'),
+            document.getElementById('filtroAnoCategoria')
+        ];
+
+        yearSelects.forEach(select => {
+            select.innerHTML = '<option value="">Todos os anos</option>';
+            for (let year = currentYear; year >= currentYear - 5; year--) {
+                const option = document.createElement('option');
+                option.value = year.toString();
+                option.textContent = year.toString();
+                select.appendChild(option);
+            }
+        });
     }
 
     setupTheme() {
@@ -204,27 +225,26 @@ class FinanceApp {
     }
 
     updateBalance() {
+        // SOMA DE TODOS OS SALÁRIOS E RESERVA DO ÚLTIMO MÊS
         const saldoRecente = this.data.saldos[0];
         const gastosPagos = this.data.gastos
             .filter(gasto => gasto.status === 'Pago')
             .reduce((total, gasto) => total + gasto.valor, 0);
 
-        // Atualizar valores individuais
-        if (saldoRecente) {
-            document.getElementById('salarioSammia').textContent = this.formatCurrency(saldoRecente.salarioSammia || 0);
-            document.getElementById('salarioSamuel').textContent = this.formatCurrency(saldoRecente.salarioSamuel || 0);
-            document.getElementById('reservaValor').textContent = this.formatCurrency(saldoRecente.reserva || 0);
-            document.getElementById('reservaDashboard').textContent = this.formatCurrency(saldoRecente.reserva || 0);
-        }
+        // Calcular soma de todos os salários
+        const totalSalariosSammia = this.data.saldos.reduce((total, saldo) => total + (saldo.salarioSammia || 0), 0);
+        const totalSalariosSamuel = this.data.saldos.reduce((total, saldo) => total + (saldo.salarioSamuel || 0), 0);
+        const reservaAtual = saldoRecente ? (saldoRecente.reserva || 0) : 0;
 
+        // Atualizar valores individuais
+        document.getElementById('salarioSammia').textContent = this.formatCurrency(totalSalariosSammia);
+        document.getElementById('salarioSamuel').textContent = this.formatCurrency(totalSalariosSamuel);
+        document.getElementById('reservaValor').textContent = this.formatCurrency(reservaAtual);
+        document.getElementById('reservaDashboard').textContent = this.formatCurrency(reservaAtual);
         document.getElementById('gastosPagos').textContent = this.formatCurrency(gastosPagos);
 
-        // Calcular saldo geral
-        const salarioSammia = saldoRecente ? (saldoRecente.salarioSammia || 0) : 0;
-        const salarioSamuel = saldoRecente ? (saldoRecente.salarioSamuel || 0) : 0;
-        const reserva = saldoRecente ? (saldoRecente.reserva || 0) : 0;
-        
-        const saldoGeral = (salarioSammia + salarioSamuel + reserva) - gastosPagos;
+        // Calcular saldo geral (soma de todos os salários + reserva atual - gastos pagos)
+        const saldoGeral = (totalSalariosSammia + totalSalariosSamuel + reservaAtual) - gastosPagos;
         
         const saldoElement = document.getElementById('saldoGeral');
         const trendElement = document.getElementById('saldoTrend');
@@ -255,8 +275,15 @@ class FinanceApp {
                    dataGasto.getFullYear() === currentYear;
         });
 
-        const totalReceitas = this.data.saldos[0] ? 
-            (this.data.saldos[0].salarioSammia || 0) + (this.data.saldos[0].salarioSamuel || 0) : 0;
+        // Soma dos salários do mês atual
+        const saldosMes = this.data.saldos.filter(saldo => {
+            const dataSaldo = new Date(saldo.data);
+            return dataSaldo.getMonth() + 1 === currentMonth && 
+                   dataSaldo.getFullYear() === currentYear;
+        });
+
+        const totalReceitas = saldosMes.reduce((total, saldo) => 
+            total + (saldo.salarioSammia || 0) + (saldo.salarioSamuel || 0), 0);
         
         const totalDespesas = gastosMes
             .filter(gasto => gasto.status === 'Pago')
@@ -267,7 +294,7 @@ class FinanceApp {
 
         document.getElementById('totalReceitas').textContent = this.formatCurrency(totalReceitas);
         document.getElementById('totalDespesas').textContent = this.formatCurrency(totalDespesas);
-        document.getElementById('totalPendentes').textContent = totalPendentes;
+        document.getElementById('totalPendentes').textContent = totalPendentes.toString();
     }
 
     // ===========================================
@@ -282,28 +309,47 @@ class FinanceApp {
 
     updateGastosChart() {
         const ctx = document.getElementById('graficoGastos').getContext('2d');
-        const gastosPorMes = {};
+        
+        // Obter todos os meses do ano atual em ordem
+        const currentYear = new Date().getFullYear();
+        const mesesOrdenados = [];
+        
+        for (let month = 0; month < 12; month++) {
+            const chave = `${currentYear}-${String(month + 1).padStart(2, '0')}`;
+            mesesOrdenados.push(chave);
+        }
 
+        const gastosPorMes = {};
+        
+        // Inicializar todos os meses com zero
+        mesesOrdenados.forEach(mes => {
+            gastosPorMes[mes] = 0;
+        });
+
+        // Adicionar gastos existentes
         this.data.gastos.forEach(gasto => {
             if (gasto.status === 'Pago') {
                 const data = new Date(gasto.data);
-                const chave = `${data.getFullYear()}-${data.getMonth() + 1}`;
+                const ano = data.getFullYear();
+                const mes = String(data.getMonth() + 1).padStart(2, '0');
+                const chave = `${ano}-${mes}`;
                 
-                if (!gastosPorMes[chave]) {
-                    gastosPorMes[chave] = 0;
+                if (gastosPorMes[chave] !== undefined) {
+                    gastosPorMes[chave] += gasto.valor;
                 }
-                
-                gastosPorMes[chave] += gasto.valor;
             }
         });
 
-        const meses = Object.keys(gastosPorMes).sort();
-        const labels = meses.map(mes => {
+        const labels = mesesOrdenados.map(mes => {
             const [ano, mesNum] = mes.split('-');
-            const nomeMes = new Date(ano, mesNum - 1).toLocaleDateString('pt-BR', { month: 'short' });
-            return `${nomeMes}/${ano}`;
+            const nomeMes = new Date(ano, parseInt(mesNum) - 1).toLocaleDateString('pt-BR', { 
+                month: 'short',
+                year: 'numeric'
+            });
+            return nomeMes;
         });
-        const valores = meses.map(mes => gastosPorMes[mes]);
+
+        const valores = mesesOrdenados.map(mes => gastosPorMes[mes]);
 
         if (this.charts.gastos) {
             this.charts.gastos.destroy();
@@ -454,7 +500,7 @@ class FinanceApp {
                             label: (context) => {
                                 const value = context.raw;
                                 const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                const percentage = ((value / total) * 100).toFixed(1);
+                                const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0';
                                 return `${context.label}: ${this.formatCurrency(value)} (${percentage}%)`;
                             }
                         }
@@ -573,6 +619,7 @@ class FinanceApp {
             return;
         }
 
+        const id = document.getElementById('saldoId').value;
         const dataSaldo = document.getElementById('dataSaldo').value;
         const salarioSammia = parseFloat(document.getElementById('salarioSammiaInput').value) || 0;
         const salarioSamuel = parseFloat(document.getElementById('salarioSamuelInput').value) || 0;
@@ -588,10 +635,15 @@ class FinanceApp {
 
         this.showLoading(true);
         try {
-            await this.saldosCollection.add(saldo);
-            this.showNotification('✅ Saldos salvos com sucesso!', 'success');
-            document.getElementById('saldoForm').reset();
-            document.getElementById('dataSaldo').valueAsDate = new Date();
+            if (id) {
+                await this.saldosCollection.doc(id).update(saldo);
+                this.showNotification('✅ Saldo atualizado com sucesso!', 'success');
+            } else {
+                await this.saldosCollection.add(saldo);
+                this.showNotification('✅ Saldos salvos com sucesso!', 'success');
+            }
+            
+            this.clearSaldoForm();
         } catch (error) {
             console.error('Erro ao salvar saldos:', error);
             this.showNotification('❌ Erro ao salvar saldos. Tente novamente.', 'error');
@@ -603,6 +655,13 @@ class FinanceApp {
         document.getElementById('gastoId').value = '';
         document.getElementById('gastoForm').reset();
         document.getElementById('data').valueAsDate = new Date();
+    }
+
+    clearSaldoForm() {
+        document.getElementById('saldoId').value = '';
+        document.getElementById('saldoForm').reset();
+        document.getElementById('dataSaldo').valueAsDate = new Date();
+        document.getElementById('btnCancelarSaldo').classList.add('hidden');
     }
 
     async loadLastSaldo() {
@@ -752,12 +811,22 @@ class FinanceApp {
             const div = document.createElement('div');
             div.className = 'history-item';
             div.innerHTML = `
-                <span>${dataFormatada}</span>
-                <span>${this.formatCurrency(total)}</span>
+                <div class="history-item-content">
+                    <span class="history-date">${dataFormatada}</span>
+                    <span class="history-amount">${this.formatCurrency(total)}</span>
+                </div>
+                <div class="history-actions">
+                    <button class="btn-icon btn-small" onclick="app.editSaldo('${saldo.id}')" title="Editar">
+                        <i data-feather="edit"></i>
+                    </button>
+                    <button class="btn-icon btn-small" onclick="app.deleteSaldo('${saldo.id}')" title="Excluir">
+                        <i data-feather="trash-2"></i>
+                    </button>
+                </div>
             `;
-            div.addEventListener('click', () => this.loadSaldoIntoForm(saldo));
             historyBody.appendChild(div);
         });
+        feather.replace();
     }
 
     // ===========================================
@@ -913,6 +982,34 @@ class FinanceApp {
         this.showLoading(false);
     }
 
+    async editSaldo(id) {
+        this.showLoading(true);
+        try {
+            const doc = await this.saldosCollection.doc(id).get();
+            if (doc.exists) {
+                const saldo = doc.data();
+                
+                document.getElementById('saldoId').value = id;
+                document.getElementById('dataSaldo').value = saldo.data;
+                document.getElementById('salarioSammiaInput').value = saldo.salarioSammia || '';
+                document.getElementById('salarioSamuelInput').value = saldo.salarioSamuel || '';
+                document.getElementById('reservaInput').value = saldo.reserva || '';
+                
+                document.getElementById('btnCancelarSaldo').classList.remove('hidden');
+                
+                // Scroll to form
+                document.getElementById('saldoForm').scrollIntoView({ 
+                    behavior: 'smooth',
+                    block: 'start'
+                });
+            }
+        } catch (error) {
+            console.error('Erro ao carregar saldo para edição:', error);
+            this.showNotification('❌ Erro ao carregar saldo para edição.', 'error');
+        }
+        this.showLoading(false);
+    }
+
     async deleteGasto(id) {
         if (confirm('⚠️ Tem certeza que deseja excluir este gasto?')) {
             this.showLoading(true);
@@ -922,6 +1019,20 @@ class FinanceApp {
             } catch (error) {
                 console.error('Erro ao excluir gasto:', error);
                 this.showNotification('❌ Erro ao excluir gasto. Tente novamente.', 'error');
+            }
+            this.showLoading(false);
+        }
+    }
+
+    async deleteSaldo(id) {
+        if (confirm('⚠️ Tem certeza que deseja excluir este saldo?')) {
+            this.showLoading(true);
+            try {
+                await this.saldosCollection.doc(id).delete();
+                this.showNotification('✅ Saldo excluído com sucesso!', 'success');
+            } catch (error) {
+                console.error('Erro ao excluir saldo:', error);
+                this.showNotification('❌ Erro ao excluir saldo. Tente novamente.', 'error');
             }
             this.showLoading(false);
         }
@@ -967,7 +1078,6 @@ class FinanceApp {
 
     showNotification(message, type = 'info') {
         // Implementação básica de notificação
-        // Em uma aplicação real, você poderia usar uma biblioteca como Toastify
         alert(message);
     }
 }
