@@ -42,7 +42,6 @@ class FinanceApp {
         this.setupDefaultDates();
         this.setupTheme();
         this.populateYearFilters();
-        feather.replace();
     }
 
     // ===========================================
@@ -51,7 +50,11 @@ class FinanceApp {
 
     initializeFirebase() {
         try {
-            firebase.initializeApp(this.firebaseConfig);
+            // Verificar se já está inicializado
+            if (!firebase.apps.length) {
+                firebase.initializeApp(this.firebaseConfig);
+            }
+            
             this.db = firebase.firestore();
             this.gastosCollection = this.db.collection('gastos');
             this.saldosCollection = this.db.collection('saldos');
@@ -80,6 +83,7 @@ class FinanceApp {
                 this.updateDashboard();
             }, (error) => {
                 console.error('Erro ao carregar gastos:', error);
+                this.showNotification('❌ Erro ao carregar gastos do Firebase', 'error');
             });
 
         // Listener para saldos
@@ -95,6 +99,7 @@ class FinanceApp {
                 this.updateCharts();
             }, (error) => {
                 console.error('Erro ao carregar saldos:', error);
+                this.showNotification('❌ Erro ao carregar saldos do Firebase', 'error');
             });
     }
 
@@ -107,7 +112,10 @@ class FinanceApp {
                     Conectado
                 </div>
                 <button class="btn-secondary" id="testConnection">
-                    <i data-feather="refresh-cw"></i>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="23 4 23 10 17 10"></polyline>
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                    </svg>
                     Testar Conexão
                 </button>
             `;
@@ -119,13 +127,15 @@ class FinanceApp {
                     Desconectado
                 </div>
                 <button class="btn-primary" id="connectFirebase">
-                    <i data-feather="link"></i>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                    </svg>
                     Conectar ao Firebase
                 </button>
             `;
             document.getElementById('connectFirebase').addEventListener('click', () => this.initializeFirebase());
         }
-        feather.replace();
     }
 
     async testConnection() {
@@ -207,12 +217,20 @@ class FinanceApp {
         document.documentElement.setAttribute('data-theme', newTheme);
         localStorage.setItem('theme', newTheme);
         this.updateThemeIcon(newTheme);
+        
+        // Atualizar gráficos quando o tema mudar
+        setTimeout(() => {
+            this.updateCharts();
+        }, 300);
     }
 
     updateThemeIcon(theme) {
-        const icon = document.querySelector('#themeToggle i');
-        icon.setAttribute('data-feather', theme === 'dark' ? 'sun' : 'moon');
-        feather.replace();
+        const icon = document.querySelector('#themeToggle svg');
+        if (theme === 'dark') {
+            icon.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>';
+        } else {
+            icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
+        }
     }
 
     // ===========================================
@@ -225,17 +243,22 @@ class FinanceApp {
     }
 
     updateBalance() {
-        // SOMA DE TODOS OS SALÁRIOS E RESERVA DO ÚLTIMO MÊS
-        const saldoRecente = this.data.saldos[0];
+        // Calcular totais de salários
+        const totalSalariosSammia = this.data.saldos.reduce((total, saldo) => total + (saldo.salarioSammia || 0), 0);
+        const totalSalariosSamuel = this.data.saldos.reduce((total, saldo) => total + (saldo.salarioSamuel || 0), 0);
+        
+        // Calcular gastos pagos
         const gastosPagos = this.data.gastos
             .filter(gasto => gasto.status === 'Pago')
             .reduce((total, gasto) => total + gasto.valor, 0);
 
-        // Calcular soma de todos os salários
-        const totalSalariosSammia = this.data.saldos.reduce((total, saldo) => total + (saldo.salarioSammia || 0), 0);
-        const totalSalariosSamuel = this.data.saldos.reduce((total, saldo) => total + (saldo.salarioSamuel || 0), 0);
+        // Obter reserva atual (do último saldo registrado)
+        const saldoRecente = this.data.saldos[0];
         const reservaAtual = saldoRecente ? (saldoRecente.reserva || 0) : 0;
 
+        // Calcular saldo geral: (Salários totais + Reserva atual) - Gastos pagos
+        const saldoGeral = (totalSalariosSammia + totalSalariosSamuel + reservaAtual) - gastosPagos;
+        
         // Atualizar valores individuais
         document.getElementById('salarioSammia').textContent = this.formatCurrency(totalSalariosSammia);
         document.getElementById('salarioSamuel').textContent = this.formatCurrency(totalSalariosSamuel);
@@ -243,9 +266,7 @@ class FinanceApp {
         document.getElementById('reservaDashboard').textContent = this.formatCurrency(reservaAtual);
         document.getElementById('gastosPagos').textContent = this.formatCurrency(gastosPagos);
 
-        // Calcular saldo geral (soma de todos os salários + reserva atual - gastos pagos)
-        const saldoGeral = (totalSalariosSammia + totalSalariosSamuel + reservaAtual) - gastosPagos;
-        
+        // Atualizar saldo geral e tendência
         const saldoElement = document.getElementById('saldoGeral');
         const trendElement = document.getElementById('saldoTrend');
         
@@ -255,33 +276,33 @@ class FinanceApp {
         if (saldoGeral >= 0) {
             saldoElement.classList.remove('negative');
             trendElement.className = 'trend positive';
-            trendElement.innerHTML = '<i data-feather="trending-up"></i>';
+            trendElement.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>';
         } else {
             saldoElement.classList.add('negative');
             trendElement.className = 'trend negative';
-            trendElement.innerHTML = '<i data-feather="trending-down"></i>';
+            trendElement.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline></svg>';
         }
-        
-        feather.replace();
     }
 
     updateKPIs() {
         const currentMonth = new Date().getMonth() + 1;
         const currentYear = new Date().getFullYear();
         
+        // Filtrar gastos do mês atual
         const gastosMes = this.data.gastos.filter(gasto => {
             const dataGasto = new Date(gasto.data);
             return dataGasto.getMonth() + 1 === currentMonth && 
                    dataGasto.getFullYear() === currentYear;
         });
 
-        // Soma dos salários do mês atual
+        // Filtrar saldos do mês atual
         const saldosMes = this.data.saldos.filter(saldo => {
             const dataSaldo = new Date(saldo.data);
             return dataSaldo.getMonth() + 1 === currentMonth && 
                    dataSaldo.getFullYear() === currentYear;
         });
 
+        // Calcular totais
         const totalReceitas = saldosMes.reduce((total, saldo) => 
             total + (saldo.salarioSammia || 0) + (saldo.salarioSamuel || 0), 0);
         
@@ -292,6 +313,7 @@ class FinanceApp {
         const totalPendentes = gastosMes
             .filter(gasto => gasto.status === 'Pendente').length;
 
+        // Atualizar KPIs
         document.getElementById('totalReceitas').textContent = this.formatCurrency(totalReceitas);
         document.getElementById('totalDespesas').textContent = this.formatCurrency(totalDespesas);
         document.getElementById('totalPendentes').textContent = totalPendentes.toString();
@@ -310,12 +332,17 @@ class FinanceApp {
     updateGastosChart() {
         const ctx = document.getElementById('graficoGastos').getContext('2d');
         
-        // Obter todos os meses do ano atual em ordem
-        const currentYear = new Date().getFullYear();
-        const mesesOrdenados = [];
+        // Obter filtros
+        const mesFiltro = document.getElementById('filtroMesCategoria').value;
+        const anoFiltro = document.getElementById('filtroAnoCategoria').value;
         
+        // Determinar ano para o gráfico
+        const chartYear = anoFiltro ? parseInt(anoFiltro) : new Date().getFullYear();
+        
+        // Criar array de meses ordenados
+        const mesesOrdenados = [];
         for (let month = 0; month < 12; month++) {
-            const chave = `${currentYear}-${String(month + 1).padStart(2, '0')}`;
+            const chave = `${chartYear}-${String(month + 1).padStart(2, '0')}`;
             mesesOrdenados.push(chave);
         }
 
@@ -334,7 +361,11 @@ class FinanceApp {
                 const mes = String(data.getMonth() + 1).padStart(2, '0');
                 const chave = `${ano}-${mes}`;
                 
-                if (gastosPorMes[chave] !== undefined) {
+                // Aplicar filtros
+                const mesMatch = !mesFiltro || (data.getMonth() + 1).toString() === mesFiltro;
+                const anoMatch = !anoFiltro || ano.toString() === anoFiltro;
+                
+                if (gastosPorMes[chave] !== undefined && mesMatch && anoMatch) {
                     gastosPorMes[chave] += gasto.valor;
                 }
             }
@@ -343,8 +374,7 @@ class FinanceApp {
         const labels = mesesOrdenados.map(mes => {
             const [ano, mesNum] = mes.split('-');
             const nomeMes = new Date(ano, parseInt(mesNum) - 1).toLocaleDateString('pt-BR', { 
-                month: 'short',
-                year: 'numeric'
+                month: 'short'
             });
             return nomeMes;
         });
@@ -362,8 +392,8 @@ class FinanceApp {
                 datasets: [{
                     label: 'Gastos por Mês (R$)',
                     data: valores,
-                    backgroundColor: 'rgba(20, 184, 166, 0.7)',
-                    borderColor: 'rgba(20, 184, 166, 1)',
+                    backgroundColor: this.getCSSVariable('--primary-500') + '7F',
+                    borderColor: this.getCSSVariable('--primary-500'),
                     borderWidth: 1,
                     borderRadius: 4
                 }]
@@ -374,7 +404,28 @@ class FinanceApp {
 
     updateEvolucaoSalarioChart() {
         const ctx = document.getElementById('graficoEvolucaoSalario').getContext('2d');
-        const saldosOrdenados = [...this.data.saldos].sort((a, b) => new Date(a.data) - new Date(b.data));
+        
+        // Obter filtros
+        const mesFiltro = document.getElementById('filtroMesCategoria').value;
+        const anoFiltro = document.getElementById('filtroAnoCategoria').value;
+        
+        // Filtrar saldos
+        let saldosFiltrados = [...this.data.saldos];
+        
+        if (mesFiltro || anoFiltro) {
+            saldosFiltrados = saldosFiltrados.filter(saldo => {
+                const dataSaldo = new Date(saldo.data);
+                const mes = (dataSaldo.getMonth() + 1).toString();
+                const ano = dataSaldo.getFullYear().toString();
+                
+                const mesMatch = !mesFiltro || mes === mesFiltro;
+                const anoMatch = !anoFiltro || ano === anoFiltro;
+                
+                return mesMatch && anoMatch;
+            });
+        }
+        
+        const saldosOrdenados = saldosFiltrados.sort((a, b) => new Date(a.data) - new Date(b.data));
         
         const labels = saldosOrdenados.map(saldo => this.formatDate(saldo.data));
         const salarioSammia = saldosOrdenados.map(saldo => saldo.salarioSammia || 0);
@@ -393,24 +444,24 @@ class FinanceApp {
                     {
                         label: 'Salário Sammia',
                         data: salarioSammia,
-                        borderColor: 'rgb(239, 68, 68)',
-                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        borderColor: this.getCSSVariable('--error-500'),
+                        backgroundColor: this.getCSSVariable('--error-500') + '1A',
                         tension: 0.3,
                         fill: false
                     },
                     {
                         label: 'Salário Samuel',
                         data: salarioSamuel,
-                        borderColor: 'rgb(59, 130, 246)',
-                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderColor: this.getCSSVariable('--info-500'),
+                        backgroundColor: this.getCSSVariable('--info-500') + '1A',
                         tension: 0.3,
                         fill: false
                     },
                     {
                         label: 'Total Salários',
                         data: totalSalarios,
-                        borderColor: 'rgb(20, 184, 166)',
-                        backgroundColor: 'rgba(20, 184, 166, 0.1)',
+                        borderColor: this.getCSSVariable('--primary-500'),
+                        backgroundColor: this.getCSSVariable('--primary-500') + '1A',
                         tension: 0.3,
                         fill: false
                     }
@@ -451,16 +502,16 @@ class FinanceApp {
 
         // Cores para as categorias
         const backgroundColors = [
-            'rgba(20, 184, 166, 0.7)',
-            'rgba(59, 130, 246, 0.7)',
-            'rgba(139, 92, 246, 0.7)',
-            'rgba(236, 72, 153, 0.7)',
-            'rgba(249, 115, 22, 0.7)',
-            'rgba(234, 179, 8, 0.7)',
-            'rgba(16, 185, 129, 0.7)',
-            'rgba(6, 182, 212, 0.7)',
-            'rgba(168, 85, 247, 0.7)',
-            'rgba(240, 171, 252, 0.7)'
+            this.getCSSVariable('--primary-500') + '7F',
+            this.getCSSVariable('--info-500') + '7F',
+            this.getCSSVariable('--warning-500') + '7F',
+            this.getCSSVariable('--error-500') + '7F',
+            this.getCSSVariable('--success-500') + '7F',
+            '#8B5CF6' + '7F',
+            '#EC4899' + '7F',
+            '#F97316' + '7F',
+            '#EAB308' + '7F',
+            '#06B6D4' + '7F'
         ];
 
         if (this.charts.categorias) {
@@ -485,7 +536,7 @@ class FinanceApp {
                     legend: {
                         position: 'right',
                         labels: {
-                            color: 'rgba(255, 255, 255, 0.7)',
+                            color: this.getCSSVariable('--chart-text'),
                             font: {
                                 size: 12
                             },
@@ -512,19 +563,22 @@ class FinanceApp {
     }
 
     getChartOptions(title) {
+        const textColor = this.getCSSVariable('--chart-text');
+        const gridColor = this.getCSSVariable('--chart-grid');
+        
         return {
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
                 legend: {
                     labels: {
-                        color: 'rgba(255, 255, 255, 0.7)'
+                        color: textColor
                     }
                 },
                 title: {
                     display: true,
                     text: title,
-                    color: 'rgba(255, 255, 255, 0.9)',
+                    color: textColor,
                     font: {
                         size: 16
                     }
@@ -544,10 +598,10 @@ class FinanceApp {
                 y: {
                     beginAtZero: true,
                     grid: {
-                        color: 'rgba(255, 255, 255, 0.1)'
+                        color: gridColor
                     },
                     ticks: {
-                        color: 'rgba(255, 255, 255, 0.7)',
+                        color: textColor,
                         callback: (value) => {
                             return 'R$ ' + value.toLocaleString('pt-BR');
                         }
@@ -555,14 +609,20 @@ class FinanceApp {
                 },
                 x: {
                     grid: {
-                        color: 'rgba(255, 255, 255, 0.1)'
+                        color: gridColor
                     },
                     ticks: {
-                        color: 'rgba(255, 255, 255, 0.7)'
+                        color: textColor
                     }
                 }
             }
         };
+    }
+
+    getCSSVariable(variable) {
+        return getComputedStyle(document.documentElement)
+            .getPropertyValue(variable)
+            .trim();
     }
 
     // ===========================================
@@ -730,7 +790,10 @@ class FinanceApp {
             tbody.innerHTML = `
                 <tr>
                     <td colspan="6" class="empty-state">
-                        <i data-feather="search"></i>
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
                         <div>
                             <p>Nenhum gasto encontrado</p>
                             <small>Tente alterar os filtros ou adicionar novos gastos</small>
@@ -738,7 +801,6 @@ class FinanceApp {
                     </td>
                 </tr>
             `;
-            feather.replace();
             return;
         }
 
@@ -760,20 +822,27 @@ class FinanceApp {
                 <td>
                     <div class="table-actions">
                         <button class="btn-icon btn-small" onclick="app.editGasto('${gasto.id}')" title="Editar">
-                            <i data-feather="edit"></i>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
                         </button>
                         <button class="btn-icon btn-small" onclick="app.deleteGasto('${gasto.id}')" title="Excluir">
-                            <i data-feather="trash-2"></i>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
                         </button>
                         <button class="btn-icon btn-small" onclick="app.toggleStatus('${gasto.id}', '${gasto.status}')" title="${gasto.status === 'Pago' ? 'Marcar como Pendente' : 'Marcar como Pago'}">
-                            <i data-feather="${gasto.status === 'Pago' ? 'clock' : 'check'}"></i>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                ${gasto.status === 'Pago' ? '<circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>' : '<polyline points="20 6 9 17 4 12"></polyline>'}
+                            </svg>
                         </button>
                     </div>
                 </td>
             `;
             tbody.appendChild(tr);
         });
-        feather.replace();
     }
 
     clearFilters() {
@@ -794,11 +863,14 @@ class FinanceApp {
         if (this.data.saldos.length === 0) {
             historyBody.innerHTML = `
                 <div class="empty-state">
-                    <i data-feather="database"></i>
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                        <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                    </svg>
                     <p>Nenhum saldo registrado</p>
                 </div>
             `;
-            feather.replace();
             return;
         }
 
@@ -817,16 +889,21 @@ class FinanceApp {
                 </div>
                 <div class="history-actions">
                     <button class="btn-icon btn-small" onclick="app.editSaldo('${saldo.id}')" title="Editar">
-                        <i data-feather="edit"></i>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
                     </button>
                     <button class="btn-icon btn-small" onclick="app.deleteSaldo('${saldo.id}')" title="Excluir">
-                        <i data-feather="trash-2"></i>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
                     </button>
                 </div>
             `;
             historyBody.appendChild(div);
         });
-        feather.replace();
     }
 
     // ===========================================
@@ -955,59 +1032,41 @@ class FinanceApp {
     // CRUD METHODS (para uso global)
     // ===========================================
 
-    async editGasto(id) {
-        this.showLoading(true);
-        try {
-            const doc = await this.gastosCollection.doc(id).get();
-            if (doc.exists) {
-                const gasto = doc.data();
-                
-                document.getElementById('gastoId').value = id;
-                document.getElementById('titulo').value = gasto.titulo;
-                document.getElementById('valor').value = gasto.valor;
-                document.getElementById('data').value = gasto.data;
-                document.getElementById('categoria').value = gasto.categoria;
-                document.getElementById('status').value = gasto.status;
-                
-                // Scroll to form
-                document.getElementById('gastoForm').scrollIntoView({ 
-                    behavior: 'smooth',
-                    block: 'start'
-                });
-            }
-        } catch (error) {
-            console.error('Erro ao carregar gasto para edição:', error);
-            this.showNotification('❌ Erro ao carregar gasto para edição.', 'error');
+    editGasto(id) {
+        const gasto = this.data.gastos.find(g => g.id === id);
+        if (gasto) {
+            document.getElementById('gastoId').value = id;
+            document.getElementById('titulo').value = gasto.titulo;
+            document.getElementById('valor').value = gasto.valor;
+            document.getElementById('data').value = gasto.data;
+            document.getElementById('categoria').value = gasto.categoria;
+            document.getElementById('status').value = gasto.status;
+            
+            // Scroll to form
+            document.getElementById('gastoForm').scrollIntoView({ 
+                behavior: 'smooth',
+                block: 'start'
+            });
         }
-        this.showLoading(false);
     }
 
-    async editSaldo(id) {
-        this.showLoading(true);
-        try {
-            const doc = await this.saldosCollection.doc(id).get();
-            if (doc.exists) {
-                const saldo = doc.data();
-                
-                document.getElementById('saldoId').value = id;
-                document.getElementById('dataSaldo').value = saldo.data;
-                document.getElementById('salarioSammiaInput').value = saldo.salarioSammia || '';
-                document.getElementById('salarioSamuelInput').value = saldo.salarioSamuel || '';
-                document.getElementById('reservaInput').value = saldo.reserva || '';
-                
-                document.getElementById('btnCancelarSaldo').classList.remove('hidden');
-                
-                // Scroll to form
-                document.getElementById('saldoForm').scrollIntoView({ 
-                    behavior: 'smooth',
-                    block: 'start'
-                });
-            }
-        } catch (error) {
-            console.error('Erro ao carregar saldo para edição:', error);
-            this.showNotification('❌ Erro ao carregar saldo para edição.', 'error');
+    editSaldo(id) {
+        const saldo = this.data.saldos.find(s => s.id === id);
+        if (saldo) {
+            document.getElementById('saldoId').value = id;
+            document.getElementById('dataSaldo').value = saldo.data;
+            document.getElementById('salarioSammiaInput').value = saldo.salarioSammia || '';
+            document.getElementById('salarioSamuelInput').value = saldo.salarioSamuel || '';
+            document.getElementById('reservaInput').value = saldo.reserva || '';
+            
+            document.getElementById('btnCancelarSaldo').classList.remove('hidden');
+            
+            // Scroll to form
+            document.getElementById('saldoForm').scrollIntoView({ 
+                behavior: 'smooth',
+                block: 'start'
+            });
         }
-        this.showLoading(false);
     }
 
     async deleteGasto(id) {
@@ -1056,6 +1115,56 @@ class FinanceApp {
     }
 
     // ===========================================
+    // NOTIFICAÇÕES (TOASTS)
+    // ===========================================
+
+    showNotification(message, type = 'info') {
+        const toastContainer = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        
+        const icons = {
+            success: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>',
+            error: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>',
+            warning: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>',
+            info: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>'
+        };
+        
+        toast.innerHTML = `
+            <div class="toast-icon">${icons[type] || icons.info}</div>
+            <div class="toast-content">${message}</div>
+            <button class="toast-close">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        `;
+        
+        toastContainer.appendChild(toast);
+        
+        // Auto-remove após 5 segundos
+        const autoRemove = setTimeout(() => {
+            this.removeToast(toast);
+        }, 5000);
+        
+        // Remover ao clicar no botão de fechar
+        toast.querySelector('.toast-close').addEventListener('click', () => {
+            clearTimeout(autoRemove);
+            this.removeToast(toast);
+        });
+    }
+
+    removeToast(toast) {
+        toast.classList.add('hiding');
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 300);
+    }
+
+    // ===========================================
     // UTILITÁRIOS
     // ===========================================
 
@@ -1074,11 +1183,6 @@ class FinanceApp {
     showLoading(show) {
         const overlay = document.getElementById('loadingOverlay');
         overlay.classList.toggle('hidden', !show);
-    }
-
-    showNotification(message, type = 'info') {
-        // Implementação básica de notificação
-        alert(message);
     }
 }
 
