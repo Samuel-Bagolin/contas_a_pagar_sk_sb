@@ -75,6 +75,8 @@
     --text-secondary: var(--gray-300);
     --text-muted: var(--gray-400);
     --border-color: var(--gray-700);
+    --chart-grid: rgba(255, 255, 255, 0.1);
+    --chart-text: rgba(255, 255, 255, 0.7);
 }
 
 /* Tema claro */
@@ -87,6 +89,8 @@
     --text-secondary: var(--gray-700);
     --text-muted: var(--gray-500);
     --border-color: var(--gray-200);
+    --chart-grid: rgba(0, 0, 0, 0.1);
+    --chart-text: rgba(0, 0, 0, 0.7);
 }
 
 /* Reset e base */
@@ -335,14 +339,14 @@ body {
     color: var(--gray-300);
 }
 
-/* KPI Card */
+/* KPI Card - REFEITO */
 .kpi-card {
     background: var(--bg-card);
 }
 
 .kpi-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: var(--space-4);
 }
 
@@ -354,7 +358,12 @@ body {
     background: var(--bg-elevated);
     border-radius: var(--radius-md);
     border: 1px solid var(--border-color);
-    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.kpi-item:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
 }
 
 .kpi-icon {
@@ -386,17 +395,20 @@ body {
     display: flex;
     flex-direction: column;
     flex: 1;
+    text-align: left;
 }
 
 .kpi-value {
     font-size: var(--text-lg);
     font-weight: 700;
     margin-bottom: var(--space-1);
+    line-height: 1.2;
 }
 
 .kpi-label {
     font-size: var(--text-sm);
     color: var(--text-muted);
+    line-height: 1.2;
 }
 
 /* Charts Section */
@@ -721,7 +733,7 @@ tr:hover {
     text-align: center;
 }
 
-.empty-state i {
+.empty-state svg {
     width: 48px;
     height: 48px;
     margin-bottom: var(--space-3);
@@ -799,15 +811,105 @@ tr:hover {
     color: white;
 }
 
-.loading-spinner i {
-    width: 32px;
-    height: 32px;
+.spinner {
     animation: spin 1s linear infinite;
 }
 
 @keyframes spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
+}
+
+/* Toast Notifications */
+.toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 1100;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    max-width: 400px;
+}
+
+.toast {
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    animation: slideIn 0.3s ease;
+    transition: all 0.3s ease;
+    max-width: 100%;
+}
+
+.toast.hiding {
+    animation: slideOut 0.3s ease forwards;
+}
+
+.toast.success {
+    background: var(--success-500);
+    color: white;
+}
+
+.toast.error {
+    background: var(--error-500);
+    color: white;
+}
+
+.toast.warning {
+    background: var(--warning-500);
+    color: white;
+}
+
+.toast.info {
+    background: var(--info-500);
+    color: white;
+}
+
+.toast-icon {
+    flex-shrink: 0;
+}
+
+.toast-content {
+    flex: 1;
+}
+
+.toast-close {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: var(--space-1);
+    border-radius: var(--radius-sm);
+    transition: background-color 0.2s ease;
+}
+
+.toast-close:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(100%);
+        opacity: 0;
+    }
 }
 
 /* Responsive */
@@ -819,6 +921,10 @@ tr:hover {
     .charts-grid {
         grid-template-columns: 1fr;
     }
+    
+    .kpi-grid {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    }
 }
 
 @media (max-width: 768px) {
@@ -828,6 +934,11 @@ tr:hover {
     
     .kpi-grid {
         grid-template-columns: 1fr;
+    }
+    
+    .kpi-item {
+        flex-direction: row;
+        text-align: left;
     }
     
     .form-row {
@@ -872,13 +983,19 @@ tr:hover {
         width: 100%;
     }
     
-    .kpi-item {
-        flex-direction: column;
-        text-align: center;
+    .charts-grid {
+        grid-template-columns: 1fr;
     }
     
-    .kpi-content {
-        align-items: center;
+    .chart-card .card-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-3);
+    }
+    
+    .chart-controls {
+        width: 100%;
+        justify-content: flex-end;
     }
 }
 
@@ -920,6 +1037,12 @@ tr:hover {
     
     .reserve-card .card-header {
         flex-direction: row;
+    }
+    
+    .toast-container {
+        right: 10px;
+        left: 10px;
+        max-width: none;
     }
 }
 
