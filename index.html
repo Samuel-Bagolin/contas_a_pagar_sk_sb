@@ -210,6 +210,7 @@
                             <h2>Lançar Saldos</h2>
                         </div>
                         <form id="saldoForm" class="form">
+                            <input type="hidden" id="saldoId">
                             <div class="form-group">
                                 <label for="dataSaldo">Data do Saldo</label>
                                 <input type="date" id="dataSaldo" required>
@@ -236,6 +237,10 @@
                                 <button type="button" id="btnCarregarSaldos" class="btn-secondary">
                                     <i data-feather="download"></i>
                                     Carregar Últimos
+                                </button>
+                                <button type="button" id="btnCancelarSaldo" class="btn-secondary hidden">
+                                    <i data-feather="x"></i>
+                                    Cancelar
                                 </button>
                             </div>
                         </form>
